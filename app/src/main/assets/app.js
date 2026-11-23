@@ -104,31 +104,162 @@
     if (view.ty > H * 0.5) view.ty = H * 0.5;
     if (view.ty < H * 0.5 - mh) view.ty = H * 0.5 - mh;
   }
+  var THEMES = {
+    night: { sea1: '#0e2a43', sea2: '#081726', out: '#050f1a', grid: 'rgba(140,180,220,.10)', eq: 'rgba(245,166,35,.22)',
+      land: ['#2f4a63', '#365a6e', '#3a5a5f', '#34506b', '#44546f', '#375c55'], line: 'rgba(190,215,240,.55)',
+      sel: '#f5a623', selLine: '#ffffff', glow: 'rgba(245,166,35,.85)', frame: 'rgba(140,180,220,.35)',
+      nod: '#243447', halo: 'rgba(5,15,26,.85)', txt: '#eaf2fa', ramp: ['#1c3f6b', '#2a9d8f', '#f5e663'] },
+    day: { sea1: '#bfe0f2', sea2: '#8ec5e3', out: '#dfeef6', grid: 'rgba(40,90,130,.13)', eq: 'rgba(224,138,0,.35)',
+      land: ['#efe4c6', '#e2ebcb', '#ecd9b8', '#d9e6c6', '#f3e8c4', '#dfdcc0'], line: 'rgba(90,100,90,.55)',
+      sel: '#ee8f00', selLine: '#ffffff', glow: 'rgba(224,138,0,.8)', frame: 'rgba(40,90,130,.35)',
+      nod: '#e3e6ea', halo: 'rgba(255,255,255,.85)', txt: '#1b2a38', ramp: ['#fff1c1', '#f6a04d', '#b3261e'] }
+  };
+
+  /* ---------- التلوين حسب البيان ---------- */
+  var metric = null, showLabels = true;
+  function short(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + ' مليار';
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + ' مليون';
+    if (n >= 1e3) return Math.round(n / 1e3) + ' ألف';
+    return fmt(n);
+  }
+  function exg(id, i) { var x = (window.EXTRA || {})[id]; return x && x.g[i] != null ? x.g[i] : null; }
+  var METRICS = [
+    { k: null, n: 'بدون تلوين' },
+    { k: 'pop', n: 'عدد السكان', log: 1, f: short, get: function (id) { var d = DATA[id]; return d ? (POP[id] ? POP[id].v : d[0]) : null; } },
+    { k: 'area', n: 'المساحة', log: 1, f: function (v) { return short(v) + ' كم²'; }, get: function (id) { var d = DATA[id]; return d ? d[1] : null; } },
+    { k: 'dens', n: 'الكثافة السكانية', log: 1, f: function (v) { return fmt(v) + ' /كم²'; }, get: function (id) { var d = DATA[id]; return d && d[1] ? (POP[id] ? POP[id].v : d[0]) / d[1] : null; } },
+    { k: 'gdp', n: 'الناتج المحلي (30 دولة)', log: 1, f: function (v) { return money(v); }, get: function (id) { return exg(id, 0); } },
+    { k: 'gpc', n: 'نصيب الفرد (30 دولة)', log: 1, f: function (v) { return fmt(v) + ' $'; }, get: function (id) { return exg(id, 1); } },
+    { k: 'gro', n: 'النمو الاقتصادي (30 دولة)', log: 0, f: function (v) { return v.toFixed(1) + '%'; }, get: function (id) { return exg(id, 2); } }
+  ];
+  function hex2(h) { return [1, 3, 5].map(function (i) { return parseInt(h.substr(i, 2), 16); }); }
+  function ramp(t, st) {
+    t = Math.max(0, Math.min(1, t));
+    var p = t * (st.length - 1), i = Math.min(st.length - 2, Math.floor(p)), f = p - i;
+    var a = hex2(st[i]), b = hex2(st[i + 1]);
+    return 'rgb(' + a.map(function (x, k) { return Math.round(x + (b[k] - x) * f); }).join(',') + ')';
+  }
+  function recolor() {
+    var lg = $('legend');
+    if (!metric || !countries.length) { countries.forEach(function (c) { c.mc = null; }); lg.style.display = 'none'; return; }
+    var st = THEMES[theme].ramp, vals = [];
+    countries.forEach(function (c) {
+      var v = metric.get(c.id);
+      c.mv = (v == null || (metric.log && v <= 0)) ? null : v;
+      if (c.mv != null) vals.push(c.mv);
+    });
+    vals.sort(function (a, b) { return a - b; });
+    if (!vals.length) { lg.style.display = 'none'; return; }
+    var lo = vals[Math.floor(vals.length * 0.03)], hi = vals[Math.ceil(vals.length * 0.97) - 1];
+    if (hi === lo) hi = lo + 1;
+    var tf = metric.log ? Math.log : function (x) { return x; };
+    countries.forEach(function (c) {
+      c.mc = c.mv == null ? null : ramp((tf(c.mv) - tf(lo)) / (tf(hi) - tf(lo)), st);
+    });
+    $('ltitle').textContent = metric.n;
+    $('lbar').style.background = 'linear-gradient(to right,' + st.join(',') + ')';
+    $('lmin').textContent = metric.f(lo); $('lmax').textContent = metric.f(hi);
+    lg.style.display = 'block';
+  }
+  function buildMenu() {
+    var m = $('mmenu'); m.innerHTML = '';
+    METRICS.forEach(function (x) {
+      var d = document.createElement('div'); d.textContent = x.n;
+      if (x === metric || (!metric && !x.k)) d.className = 'on';
+      d.onclick = function () { metric = x.k ? x : null; m.style.display = 'none'; recolor(); buildMenu(); draw(); };
+      m.appendChild(d);
+    });
+  }
+  $('mbtn').onclick = function () { var m = $('mmenu'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; };
+  $('zlab').onclick = function () { showLabels = !showLabels; toast(showLabels ? 'أسماء الدول: مفعّلة' : 'أسماء الدول: مخفية'); draw(); };
+  buildMenu();
+
+  var theme = 'night';
+  try { theme = localStorage.getItem('wm_theme') || (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'day' : 'night'); } catch (e) {}
+  function applyTheme() {
+    document.body.className = theme === 'day' ? 'light' : '';
+    $('theme').textContent = theme === 'day' ? '🌙' : '☀';
+    try { localStorage.setItem('wm_theme', theme); } catch (e) {}
+  }
+  function hashIdx(id) { var h = 0; for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h % 6; }
+
+  function drawLabels(T) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var fs = Math.min(15, 9.5 + Math.log(view.s / minS) / Math.LN2 * 1.1);
+    var fam = ' system-ui,"Noto Naskh Arabic",sans-serif';
+    ctx.font = '600 ' + fs + 'px' + fam;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.lineWidth = 3;
+    var placed = [];
+    countries.forEach(function (c) {
+      var m = c.main; if (!m) return;
+      var cx = (m[0] + m[2]) / 2 * view.s + view.tx, cy = (m[1] + m[3]) / 2 * view.s + view.ty;
+      if (cx < -40 || cx > W + 40 || cy < 0 || cy > H) return;
+      if (c.tw === undefined) {
+        ctx.save(); ctx.font = '10px' + fam; c.tw = ctx.measureText(c.name).width; ctx.restore();
+      }
+      var tw = c.tw * fs / 10;
+      if ((m[2] - m[0]) * view.s < tw * 0.9) return;
+      var r = [cx - tw / 2 - 2, cy - fs / 2 - 1, cx + tw / 2 + 2, cy + fs / 2 + 1];
+      for (var i = 0; i < placed.length; i++) {
+        var p = placed[i];
+        if (r[0] < p[2] && r[2] > p[0] && r[1] < p[3] && r[3] > p[1]) return;
+      }
+      placed.push(r);
+      ctx.strokeStyle = T.halo; ctx.strokeText(c.name, cx, cy);
+      ctx.fillStyle = T.txt; ctx.fillText(c.name, cx, cy);
+    });
+  }
+
   function draw() {
+    var T = THEMES[theme], MH = TOP - BOT;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#0b1d2e';
+    ctx.fillStyle = T.out;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(view.s * dpr, 0, 0, view.s * dpr, view.tx * dpr, view.ty * dpr);
     ctx.lineJoin = 'round';
     var x0 = -view.tx / view.s, y0 = -view.ty / view.s;
     var x1 = (W - view.tx) / view.s, y1 = (H - view.ty) / view.s;
+    // المحيط
+    var g = ctx.createLinearGradient(0, 0, 0, MH);
+    g.addColorStop(0, T.sea1); g.addColorStop(1, T.sea2);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 360, MH);
+    // شبكة خطوط الطول والعرض
+    ctx.lineWidth = 0.6 / view.s; ctx.strokeStyle = T.grid; ctx.beginPath();
+    var lon, lat;
+    for (lon = -150; lon < 180; lon += 30) { ctx.moveTo(lon + 180, 0); ctx.lineTo(lon + 180, MH); }
+    for (lat = -30; lat <= 60; lat += 30) { if (lat === 0) continue; ctx.moveTo(0, TOP - lat); ctx.lineTo(360, TOP - lat); }
+    ctx.stroke();
+    ctx.strokeStyle = T.eq; ctx.setLineDash([4 / view.s, 4 / view.s]);
+    ctx.beginPath(); ctx.moveTo(0, TOP); ctx.lineTo(360, TOP); ctx.stroke(); ctx.setLineDash([]);
+    // الدول
     var sel = {};
     selected.forEach(function (id) { sel[id] = true; });
-    ctx.lineWidth = 0.7 / view.s;
-    ctx.fillStyle = '#2d4157'; ctx.strokeStyle = '#7f97b0';
+    ctx.lineWidth = 0.6 / view.s; ctx.strokeStyle = T.line;
     countries.forEach(function (c) {
       if (sel[c.id]) return;
       var b = c.bbox;
       if (b[2] < x0 || b[0] > x1 || b[3] < y0 || b[1] > y1) return;
+      if (c.ci === undefined) c.ci = hashIdx(c.id);
+      ctx.fillStyle = metric ? (c.mc || T.nod) : T.land[c.ci];
       ctx.fill(c.path); ctx.stroke(c.path);
     });
-    ctx.fillStyle = '#f5a623'; ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.2 / view.s;
+    // إطار الخريطة
+    ctx.lineWidth = 1.2 / view.s; ctx.strokeStyle = T.frame; ctx.strokeRect(0, 0, 360, MH);
+    // المحددة مع توهج
+    ctx.fillStyle = T.sel; ctx.strokeStyle = T.selLine;
+    ctx.lineWidth = 1.3 / view.s;
+    ctx.shadowColor = T.glow; ctx.shadowBlur = 14 * dpr;
     selected.forEach(function (id) {
       var c = byId[id]; if (!c) return;
+      ctx.fillStyle = (metric && c.mc) ? c.mc : T.sel;
       ctx.fill(c.path); ctx.stroke(c.path);
     });
+    ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+    if (showLabels) drawLabels(T);
   }
+  $('theme').onclick = function () { theme = theme === 'day' ? 'night' : 'day'; applyTheme(); recolor(); draw(); };
+  applyTheme();
 
   /* ---------- الاختيار ---------- */
   function inRing(x, y, r) {
@@ -183,6 +314,21 @@
     return '<div class="row"><span class="lbl">' + label + '</span><span><b>' + value + '</b>' +
       (meta ? '<span class="meta">' + meta + '</span>' : '') + '</span></div>';
   }
+  var EX = window.EXTRA || {};
+  function money(b) { return b >= 1000 ? (b / 1000).toFixed(2) + ' تريليون $' : fmt(b) + ' مليار $'; }
+  function extraHtml(id) {
+    var x = EX[id]; if (!x) return '<div class="note">لا تتوفر بيانات الديموغرافيا والاقتصاد لهذه الدولة بعد.</div>';
+    var g = x.g, h = '<details><summary>👥 الديموغرافيا</summary>' +
+      '<div class="blk"><span class="lbl">الأديان والطوائف</span>' + esc(x.r) + '</div>' +
+      '<div class="blk"><span class="lbl">الأعراق</span>' + esc(x.e) + '</div></details>';
+    h += '<details><summary>💰 الاقتصاد</summary>';
+    if (g[0] != null) {
+      h += row('الناتج المحلي', money(g[0])) + row('نصيب الفرد', fmt(g[1]) + ' $') +
+        (g[2] != null ? row('النمو السنوي', g[2] + '%') : '');
+    }
+    return h + '<div class="blk"><span class="lbl">أبرز القطاعات</span>' + esc(g[3]) + '</div></details>' +
+      '<div class="meta">أرقام تقريبية (' + window.EXTRA_YEAR + ')</div>';
+  }
   function coastText(v) { return v === 0 ? '0 كم (دولة غير ساحلية)' : fmt(v) + ' كم'; }
 
   function render() {
@@ -193,7 +339,7 @@
       return;
     }
     $('ptitle').textContent = 'الدول المحددة (' + selected.length + ')';
-    var tp = 0, ta = 0, tc = 0, missing = 0, html = '';
+    var tp = 0, ta = 0, tc = 0, tg = 0, missing = 0, html = '';
     selected.forEach(function (id) {
       var c = byId[id], i = info(id);
       html += '<div class="card"><div class="chead"><span>' + esc(c.name) + '</span><button data-rm="' + esc(id) + '">✕</button></div>';
@@ -202,6 +348,8 @@
         html += row('عدد السكان', fmt(i.pop.v), i.pop.src + ' ' + i.pop.y);
         html += row('المساحة', fmt(i.area) + ' كم²');
         html += row('طول السواحل', coastText(i.coast));
+        if (EX[id] && EX[id].g[0] != null) tg += EX[id].g[0];
+        html += extraHtml(id);
       } else {
         missing++;
         html += '<div class="hint">لا تتوفر بيانات لهذه المنطقة.</div>';
@@ -213,6 +361,7 @@
       t += row('إجمالي السكان', fmt(tp));
       t += row('إجمالي المساحة', fmt(ta) + ' كم²');
       t += row('إجمالي السواحل', fmt(tc) + ' كم');
+      if (tg) t += row('إجمالي الناتج المحلي', money(tg), 'للدول المتوفرة بياناتها فقط');
       if (missing) t += '<div class="note">المجموع لا يشمل ' + missing + ' منطقة بلا بيانات.</div>';
       t += '</div>';
       html = t + html;
@@ -225,6 +374,7 @@
     Object.keys(m).forEach(function (id) {
       if (DATA[id] && m[id][1] >= DATA_YEAR) POP[id] = { v: m[id][0], y: m[id][1], src: 'البنك الدولي' };
     });
+    recolor();
   }
   function loadWB(manual) {
     var url = 'https://api.worldbank.org/v2/country/all/indicator/SP.POP.TOTL?format=json&per_page=400&mrnev=1';

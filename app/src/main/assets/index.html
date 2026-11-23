@@ -11,15 +11,21 @@
 
 <div id="top">
   <input id="q" type="search" placeholder="ابحث عن دولة وأضفها..." autocomplete="off">
+  <button id="mbtn" title="تلوين الخريطة حسب بيان">🎨</button>
+  <button id="theme" title="نهاري / ليلي">☀</button>
   <button id="refresh" title="تحديث بيانات السكان من الإنترنت">⟳</button>
   <div id="results"></div>
+  <div id="mmenu"></div>
 </div>
 
 <div id="zoom">
   <button id="zin">+</button>
   <button id="zout">−</button>
   <button id="zfit">⌂</button>
+  <button id="zlab" title="أسماء الدول">Aa</button>
 </div>
+
+<div id="legend"><div id="ltitle"></div><div id="lbar"></div><div id="lrange"><span id="lmin"></span><span id="lmax"></span></div></div>
 
 <div id="panel">
   <div id="phead">
@@ -35,6 +41,7 @@
 <div id="toast"></div>
 
 <script src="data/countries-data.js"></script>
+<script src="data/extra-data.js"></script>
 <script src="data/world.js"></script>
 <script src="app.js"></script>
 </body>
