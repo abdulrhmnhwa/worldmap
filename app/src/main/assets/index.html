@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>خريطة العالم</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="map"></canvas>
+
+<div id="top">
+  <input id="q" type="search" placeholder="ابحث عن دولة وأضفها..." autocomplete="off">
+  <button id="refresh" title="تحديث بيانات السكان من الإنترنت">⟳</button>
+  <div id="results"></div>
+</div>
+
+<div id="zoom">
+  <button id="zin">+</button>
+  <button id="zout">−</button>
+  <button id="zfit">⌂</button>
+</div>
+
+<div id="panel">
+  <div id="phead">
+    <span id="ptitle">معلومات الدول</span>
+    <span>
+      <button id="pclear">مسح</button>
+      <button id="ptoggle">▾</button>
+    </span>
+  </div>
+  <div id="cards"></div>
+</div>
+
+<div id="toast"></div>
+
+<script src="data/countries-data.js"></script>
+<script src="data/world.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
