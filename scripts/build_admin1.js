@@ -71,6 +71,7 @@ function run(txt) {
     var p = f.properties || {}, id = p.adm0_a3 || p.ADM0_A3;
     if (!id || !f.geometry) return;
     id = ALIAS[id] || id;
+    if (id === 'ISR') return;
     var g = convert(f.geometry);
     if (!g.length) return;
     var a = Math.round(p.area_sqkm || p.AREA_SQKM || 0);
@@ -84,6 +85,9 @@ function run(txt) {
     var s = 'window.ADM1_LOAD&&ADM1_LOAD(' + JSON.stringify(id) + ',' + JSON.stringify(by[id]) + ');\n';
     fs.writeFileSync(path.join(OUT, id + '.js'), s); total += s.length;
   });
+  var idx = [];
+  ids.forEach(function (id) { by[id].forEach(function (f) { idx.push([id, f.p.n || f.p.e || '', f.p.e || '', f.p.c || '']); }); });
+  fs.writeFileSync(path.join(OUT, 'search.js'), 'window.ADM1_INDEX=' + JSON.stringify(idx) + ';\n');
   fs.writeFileSync(path.join(OUT, 'index.js'), 'window.ADM1_AVAIL=' + JSON.stringify(ids) + ';\n');
   console.log('OK: ' + ids.length + ' دولة، الحجم الكلي ' + (total / 1048576).toFixed(1) + ' MB -> ' + OUT);
 }

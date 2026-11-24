@@ -65,3 +65,13 @@ summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--acc);padding:2
 .card.active{border-color:var(--acc)}
 #credit{flex:none;text-align:center;font-size:12px;color:var(--mut);padding:6px 10px 8px;border-top:1px solid var(--line);line-height:1.6}
 #credit a{color:var(--acc);font-weight:700;text-decoration:none}
+
+#lang{font-size:14px!important;font-weight:700}
+html[dir=ltr] #results{right:52px;left:0}
+html[dir=ltr] #results div small{margin-right:0;margin-left:6px}
+html[dir=ltr] #mmenu{left:auto;right:0}
+html[dir=ltr] #ltitle{direction:ltr;text-align:left}
+
+#zcity{font-size:18px!important}
+#zcity.off{opacity:.45}
+#results div.dv small{color:var(--acc)}

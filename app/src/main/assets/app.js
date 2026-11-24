@@ -19,6 +19,13 @@
     });
   }
   function fmt(n) { return Math.round(n).toLocaleString('en-US'); }
+  var LANG = 'ar';
+  try { LANG = localStorage.getItem('wm_lang') || 'ar'; } catch (e) {}
+  function tr(s) { return LANG === 'en' ? ((window.I18N_EN || {})[s] || s) : s; }
+  function cname(c) { return LANG === 'en' ? c.nameEn : c.name; }
+  function dname(d) { var p = d.p; return LANG === 'en' ? (p.e || p.n || '?') : (p.n || p.e || '؟'); }
+  function lname(c) { return c.p ? dname(c) : cname(c); }
+  var DRIVE = 'https://drive.google.com/drive/folders/1guT6C4OD5waAmNoqhW-IxUcvZhby55aS?usp=drive_link';
   function norm(s) {
     return String(s || '').toLowerCase()
       .replace(/[ً-ٰٟ]/g, '')
@@ -29,13 +36,45 @@
     clearTimeout(toast._t); toast._t = setTimeout(function () { t.className = ''; }, 2600);
   }
 
+  /* دمج الأراضي في كيان واحد باسم فلسطين (حذف إسرائيل) */
+  function featId(f) {
+    var p = f.properties || {}, id = p.ISO_A3_EH;
+    if (!id || id === '-99') id = p.ADM0_A3;
+    return ALIAS[id] || id;
+  }
+  function ekey(a, b) {
+    var ka = Math.round(a[0] * 1e4) + ',' + Math.round(a[1] * 1e4), kb = Math.round(b[0] * 1e4) + ',' + Math.round(b[1] * 1e4);
+    return ka < kb ? ka + '|' + kb : kb + '|' + ka;
+  }
+  function polysOf(g) { return g.type === 'Polygon' ? [g.coordinates] : g.coordinates; }
+  function edgeSet(polys) {
+    var s = {};
+    polys.forEach(function (poly) { poly.forEach(function (ring) {
+      for (var i = 0; i < ring.length - 1; i++) s[ekey(ring[i], ring[i + 1])] = 1;
+    }); });
+    return s;
+  }
+  function mergePalestine(list) {
+    var isr = null, pse = null;
+    list.forEach(function (f) { var i = featId(f); if (i === 'ISR') isr = f; else if (i === 'PSE') pse = f; });
+    if (!isr) return list;
+    var out = list.filter(function (f) { return f !== isr; });
+    if (!pse || !isr.geometry || !pse.geometry) return out;
+    var pp = polysOf(pse.geometry), ip = polysOf(isr.geometry);
+    var a = edgeSet(pp), b = edgeSet(ip), internal = {};
+    Object.keys(a).forEach(function (k) { if (b[k]) internal[k] = 1; });
+    var merged = { properties: pse.properties, geometry: { type: 'MultiPolygon', coordinates: pp.concat(ip) }, _int: internal };
+    return out.map(function (f) { return f === pse ? merged : f; });
+  }
+
   /* ---------- بناء الأشكال ---------- */
   function build() {
     if (!window.WORLD) {
-      $('cards').innerHTML = '<div class="hint">ملف الخريطة (data/world.js) غير موجود. شغّل scripts/fetch_world.sh ثم أعد البناء.</div>';
+      $('cards').innerHTML = '<div class="hint">' + tr('ملف الخريطة (data/world.js) غير موجود. شغّل scripts/fetch_world.sh ثم أعد البناء.') + '</div>';
       return;
     }
-    window.WORLD.features.forEach(function (f) {
+    var feats = mergePalestine(window.WORLD.features);
+    feats.forEach(function (f) {
       var p = f.properties || {};
       var id = p.ISO_A3_EH;
       if (!id || id === '-99') id = p.ADM0_A3;
@@ -44,7 +83,7 @@
 
       var polysRaw = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
       var polys = [], bb = [1e9, 1e9, -1e9, -1e9], main = null, mainArea = -1;
-      var path = new Path2D();
+      var path = new Path2D(), spath = f._int ? new Path2D() : null;
       polysRaw.forEach(function (poly) {
         var pb = [1e9, 1e9, -1e9, -1e9], rings = [];
         poly.forEach(function (ring) {
@@ -57,6 +96,16 @@
             if (i === 0) path.moveTo(x, y); else path.lineTo(x, y);
           });
           path.closePath();
+          if (spath) {
+            var pen = false, n = ring.length;
+            for (var q = 0; q < n; q++) {
+              var e1 = ring[q], e2 = ring[(q + 1) % n];
+              if (e1[0] === e2[0] && e1[1] === e2[1]) continue;
+              if (f._int[ekey(e1, e2)]) { pen = false; continue; }
+              if (!pen) { spath.moveTo(e1[0] + 180, TOP - e1[1]); pen = true; }
+              spath.lineTo(e2[0] + 180, TOP - e2[1]);
+            }
+          }
           rings.push(flat);
         });
         var area = (pb[2] - pb[0]) * (pb[3] - pb[1]);
@@ -69,7 +118,7 @@
         id: id,
         name: p.NAME_AR || p.NAME_EN || p.NAME || id,
         nameEn: p.NAME_EN || p.NAME || id,
-        path: path, polys: polys, bbox: bb, main: main
+        path: path, spath: spath, polys: polys, bbox: bb, main: main
       };
       c.search = norm(c.name) + ' ' + norm(c.nameEn);
       countries.push(c);
@@ -108,30 +157,30 @@
     night: { sea1: '#0e2a43', sea2: '#081726', out: '#050f1a', grid: 'rgba(140,180,220,.10)', eq: 'rgba(245,166,35,.22)',
       land: ['#2f4a63', '#365a6e', '#3a5a5f', '#34506b', '#44546f', '#375c55'], line: 'rgba(190,215,240,.55)',
       sel: '#f5a623', selLine: '#ffffff', glow: 'rgba(245,166,35,.85)', frame: 'rgba(140,180,220,.35)',
-      nod: '#243447', halo: 'rgba(5,15,26,.85)', txt: '#eaf2fa', ramp: ['#1c3f6b', '#2a9d8f', '#f5e663'], dline: 'rgba(255,255,255,.85)' },
+      nod: '#243447', halo: 'rgba(5,15,26,.85)', txt: '#eaf2fa', ramp: ['#1c3f6b', '#2a9d8f', '#f5e663'], dline: 'rgba(255,255,255,.85)', cdot: '#ffd166' },
     day: { sea1: '#bfe0f2', sea2: '#8ec5e3', out: '#dfeef6', grid: 'rgba(40,90,130,.13)', eq: 'rgba(224,138,0,.35)',
       land: ['#efe4c6', '#e2ebcb', '#ecd9b8', '#d9e6c6', '#f3e8c4', '#dfdcc0'], line: 'rgba(90,100,90,.55)',
       sel: '#ee8f00', selLine: '#ffffff', glow: 'rgba(224,138,0,.8)', frame: 'rgba(40,90,130,.35)',
-      nod: '#e3e6ea', halo: 'rgba(255,255,255,.85)', txt: '#1b2a38', ramp: ['#fff1c1', '#f6a04d', '#b3261e'], dline: 'rgba(255,255,255,.95)' }
+      nod: '#e3e6ea', halo: 'rgba(255,255,255,.85)', txt: '#1b2a38', ramp: ['#fff1c1', '#f6a04d', '#b3261e'], dline: 'rgba(255,255,255,.95)', cdot: '#b45309' }
   };
 
   /* ---------- التلوين حسب البيان ---------- */
   var metric = null, showLabels = true;
   function short(n) {
-    if (n >= 1e9) return (n / 1e9).toFixed(1) + ' مليار';
-    if (n >= 1e6) return (n / 1e6).toFixed(1) + ' مليون';
-    if (n >= 1e3) return Math.round(n / 1e3) + ' ألف';
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + tr(' مليار');
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + tr(' مليون');
+    if (n >= 1e3) return Math.round(n / 1e3) + tr(' ألف');
     return fmt(n);
   }
   function exg(id, i) { var x = (window.EXTRA || {})[id]; return x && x.g[i] != null ? x.g[i] : null; }
   var METRICS = [
     { k: null, n: 'بدون تلوين' },
     { k: 'pop', n: 'عدد السكان', log: 1, f: short, get: function (id) { var d = DATA[id]; return d ? (POP[id] ? POP[id].v : d[0]) : null; } },
-    { k: 'area', n: 'المساحة', log: 1, f: function (v) { return short(v) + ' كم²'; }, get: function (id) { var d = DATA[id]; return d ? d[1] : null; } },
-    { k: 'dens', n: 'الكثافة السكانية', log: 1, f: function (v) { return fmt(v) + ' /كم²'; }, get: function (id) { var d = DATA[id]; return d && d[1] ? (POP[id] ? POP[id].v : d[0]) / d[1] : null; } },
-    { k: 'gdp', n: 'الناتج المحلي (30 دولة)', log: 1, f: function (v) { return money(v); }, get: function (id) { return exg(id, 0); } },
-    { k: 'gpc', n: 'نصيب الفرد (30 دولة)', log: 1, f: function (v) { return fmt(v) + ' $'; }, get: function (id) { return exg(id, 1); } },
-    { k: 'gro', n: 'النمو الاقتصادي (30 دولة)', log: 0, f: function (v) { return v.toFixed(1) + '%'; }, get: function (id) { return exg(id, 2); } }
+    { k: 'area', n: 'المساحة', log: 1, f: function (v) { return short(v) + tr(' كم²'); }, get: function (id) { var d = DATA[id]; return d ? d[1] : null; } },
+    { k: 'dens', n: 'الكثافة السكانية', log: 1, f: function (v) { return fmt(v) + tr(' /كم²'); }, get: function (id) { var d = DATA[id]; return d && d[1] ? (POP[id] ? POP[id].v : d[0]) / d[1] : null; } },
+    { k: 'gdp', n: 'الناتج المحلي (29 دولة)', log: 1, f: function (v) { return money(v); }, get: function (id) { return exg(id, 0); } },
+    { k: 'gpc', n: 'نصيب الفرد (29 دولة)', log: 1, f: function (v) { return fmt(v) + ' $'; }, get: function (id) { return exg(id, 1); } },
+    { k: 'gro', n: 'النمو الاقتصادي (29 دولة)', log: 0, f: function (v) { return v.toFixed(1) + '%'; }, get: function (id) { return exg(id, 2); } }
   ];
   function hex2(h) { return [1, 3, 5].map(function (i) { return parseInt(h.substr(i, 2), 16); }); }
   function ramp(t, st) {
@@ -157,7 +206,7 @@
     countries.forEach(function (c) {
       c.mc = c.mv == null ? null : ramp((tf(c.mv) - tf(lo)) / (tf(hi) - tf(lo)), st);
     });
-    $('ltitle').textContent = metric.n;
+    $('ltitle').textContent = tr(metric.n);
     $('lbar').style.background = 'linear-gradient(to right,' + st.join(',') + ')';
     $('lmin').textContent = metric.f(lo); $('lmax').textContent = metric.f(hi);
     lg.style.display = 'block';
@@ -165,14 +214,14 @@
   function buildMenu() {
     var m = $('mmenu'); m.innerHTML = '';
     METRICS.forEach(function (x) {
-      var d = document.createElement('div'); d.textContent = x.n;
+      var d = document.createElement('div'); d.textContent = tr(x.n);
       if (x === metric || (!metric && !x.k)) d.className = 'on';
       d.onclick = function () { metric = x.k ? x : null; m.style.display = 'none'; recolor(); buildMenu(); draw(); };
       m.appendChild(d);
     });
   }
   $('mbtn').onclick = function () { var m = $('mmenu'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; };
-  $('zlab').onclick = function () { showLabels = !showLabels; toast(showLabels ? 'أسماء الدول: مفعّلة' : 'أسماء الدول: مخفية'); draw(); };
+  $('zlab').onclick = function () { showLabels = !showLabels; toast(tr(showLabels ? 'أسماء الدول: مفعّلة' : 'أسماء الدول: مخفية')); draw(); };
   buildMenu();
 
   var theme = 'night';
@@ -216,7 +265,22 @@
         x: XIDX[p.c] || XIDX[norm(p.n || '')] || null };
     });
     render(); draw();
+    if (pendingDiv && pendingDiv.id === id) resolvePending();
   };
+  var pendingDiv = null;
+  function resolvePending() {
+    var pd = pendingDiv, L = ADM[pd.id]; pendingDiv = null;
+    if (!L) return;
+    var d = null;
+    for (var i = 0; i < L.length && !d; i++) {
+      var pp = L[i].p;
+      if ((pd.c && pp.c === pd.c) || (!pd.c && (pp.n === pd.ar || pp.e === pd.en))) d = L[i];
+    }
+    if (!d) return;
+    activeDiv = { id: pd.id, d: d };
+    $('panel').classList.remove('collapsed'); $('ptoggle').textContent = '▾';
+    render(); draw(); zoomTo(d); $('cards').scrollTop = 0;
+  }
   function loadAdm(id) {
     if (ADM[id] || ADM_NA[id] === 0) return;
     if (window.ADM1_AVAIL && window.ADM1_AVAIL.indexOf(id) < 0) { ADM_NA[id] = 1; return; }
@@ -244,13 +308,14 @@
   }
   function divRows(d) {
     var p = d.p, x = d.x, h = '';
-    h += row('الاسم', d.name);
-    if (p.e && p.e !== d.name) h += row('بالإنجليزية', p.e);
-    if (p.t) h += row('النوع', DTYPE[p.t] || p.t);
+    h += row('الاسم', esc(dname(d)));
+    if (LANG === 'en') { if (p.n && p.n !== p.e) h += row('الاسم العربي', esc(p.n)); }
+    else if (p.e && p.e !== dname(d)) h += row('بالإنجليزية', esc(p.e));
+    if (p.t) h += row('النوع', LANG === 'en' ? p.t : (DTYPE[p.t] || p.t));
     if (p.r) h += row('الإقليم', p.r);
-    if (x && x.cap) h += row('المركز', x.cap);
+    if (x && x.cap) h += row('المركز', LANG === 'en' ? (x.ce || x.cap) : x.cap);
     var area = x && x.a ? x.a : p.a;
-    if (area) h += row('المساحة', fmt(area) + ' كم²', 'تقريبية');
+    if (area) h += row('المساحة', fmt(area) + tr(' كم²'), 'تقريبية');
     if (x && x.p) h += row('عدد السكان', fmt(x.p), 'تقدير 2011');
     if (p.c) h += row('الرمز (ISO 3166-2)', p.c);
     return h;
@@ -258,16 +323,16 @@
   function admHtml(id) {
     var L = ADM[id];
     if (!L) {
-      if (ADM_NA[id] === 1) return '<div class="note">' + (window.ADM1_AVAIL ? 'لا تتوفر تقسيمات إدارية لهذه الدولة.' : 'بيانات التقسيمات الإدارية غير مثبّتة (شغّل scripts/build_admin1.js ثم أعد البناء).') + '</div>';
-      return '<div class="note">جارٍ تحميل التقسيمات الإدارية…</div>';
+      if (ADM_NA[id] === 1) return '<div class="note">' + tr(window.ADM1_AVAIL ? 'لا تتوفر تقسيمات إدارية لهذه الدولة.' : 'بيانات التقسيمات الإدارية غير مثبّتة (شغّل scripts/build_admin1.js ثم أعد البناء).') + '</div>';
+      return '<div class="note">' + tr('جارٍ تحميل التقسيمات الإدارية…') + '</div>';
     }
-    var sorted = L.slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'ar'); });
+    var sorted = L.slice().sort(function (a, b) { return dname(a).localeCompare(dname(b), LANG); });
     var open = activeDiv && activeDiv.id === id ? ' open' : '';
-    var h = '<details' + open + '><summary>🗺️ التقسيمات الإدارية (' + L.length + ')</summary><div class="chips">';
+    var h = '<details' + open + '><summary>' + tr('🗺️ التقسيمات الإدارية (%n)').replace('%n', L.length) + '</summary><div class="chips">';
     sorted.forEach(function (d) {
-      h += '<button class="chip' + (activeDiv && activeDiv.d === d ? ' on' : '') + '" data-div="' + esc(id) + '|' + L.indexOf(d) + '">' + esc(d.name) + '</button>';
+      h += '<button class="chip' + (activeDiv && activeDiv.d === d ? ' on' : '') + '" data-div="' + esc(id) + '|' + L.indexOf(d) + '">' + esc(dname(d)) + '</button>';
     });
-    h += '</div><div class="note">اضغط على أي تقسيم (هنا أو على الخريطة) لعرض معلوماته.</div></details>';
+    h += '</div><div class="note">' + tr('اضغط على أي تقسيم (هنا أو على الخريطة) لعرض معلوماته.') + '</div></details>';
     return h;
   }
   function setActive(id, d) {
@@ -275,6 +340,52 @@
     var pn = $('panel'); pn.classList.remove('collapsed'); $('ptoggle').textContent = '▾';
     render(); draw(); $('cards').scrollTop = 0;
   }
+
+  /* ---------- المدن (يمكن تفعيلها أو إلغاؤها) ---------- */
+  var showCities = true, CSORT = null;
+  try { var sc = localStorage.getItem('wm_cities'); if (sc !== null) showCities = sc === '1'; } catch (e) {}
+  function cityList() {
+    if (!CSORT) {
+      CSORT = (window.CITIES || window.CITIES_BASE || []).slice();
+      if (!window.CITIES) CSORT.sort(function (a, b) { return (b[5] === 1 ? 1e9 : 0) + b[4] - ((a[5] === 1 ? 1e9 : 0) + a[4]); });
+    }
+    return CSORT;
+  }
+  function drawCities(T, placed) {
+    var L = cityList(), z = view.s / minS;
+    var minPop = z < 1.5 ? 8000 : z < 3 ? 3000 : z < 6 ? 1000 : z < 12 ? 300 : 0;
+    var fs = Math.min(13, 9 + Math.log(z) / Math.LN2 * 0.6);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.font = '500 ' + fs + 'px system-ui,"Noto Naskh Arabic",sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    for (var i = 0; i < L.length; i++) {
+      var c = L[i], cap = c[5];
+      if (!(c[4] >= minPop || (cap === 1 && z >= 1.5) || (cap === 2 && z >= 8))) continue;
+      var sx = (c[0] + 180) * view.s + view.tx, sy = (TOP - c[1]) * view.s + view.ty;
+      if (sx < -10 || sx > W + 10 || sy < 0 || sy > H) continue;
+      ctx.beginPath(); ctx.arc(sx, sy, cap === 1 ? 3.6 : 2.6, 0, 6.2832);
+      ctx.fillStyle = T.cdot; ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = T.selLine; ctx.stroke();
+      if (cap === 1) { ctx.beginPath(); ctx.arc(sx, sy, 6, 0, 6.2832); ctx.strokeStyle = T.cdot; ctx.stroke(); }
+      var nm = LANG === 'en' ? c[2] : (c[3] || c[2]), w = nm.length * fs * 0.55 + 4;
+      var r = [sx + 6, sy - fs / 2 - 1, sx + 6 + w, sy + fs / 2 + 1], hit = false;
+      for (var k = 0; k < placed.length; k++) {
+        var p = placed[k];
+        if (r[0] < p[2] && r[2] > p[0] && r[1] < p[3] && r[3] > p[1]) { hit = true; break; }
+      }
+      if (hit) continue;
+      placed.push(r);
+      ctx.lineWidth = 3; ctx.strokeStyle = T.halo; ctx.strokeText(nm, sx + 8, sy);
+      ctx.fillStyle = T.txt; ctx.fillText(nm, sx + 8, sy);
+    }
+  }
+  function syncCityBtn() { $('zcity').className = showCities ? '' : 'off'; }
+  $('zcity').onclick = function () {
+    showCities = !showCities; syncCityBtn();
+    try { localStorage.setItem('wm_cities', showCities ? '1' : '0'); } catch (e) {}
+    toast(tr(showCities ? 'المدن: مفعّلة' : 'المدن: مخفية')); draw();
+  };
+  syncCityBtn();
 
   function drawLabels(T) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -291,7 +402,7 @@
       var cx = (m[0] + m[2]) / 2 * view.s + view.tx, cy = (m[1] + m[3]) / 2 * view.s + view.ty;
       if (cx < -40 || cx > W + 40 || cy < 0 || cy > H) return;
       if (c.tw === undefined) {
-        ctx.save(); ctx.font = '10px' + fam; c.tw = ctx.measureText(c.name).width; ctx.restore();
+        ctx.save(); ctx.font = '10px' + fam; c.tw = ctx.measureText(lname(c)).width; ctx.restore();
       }
       var tw = c.tw * fs / 10;
       if ((m[2] - m[0]) * view.s < tw * 0.9) return;
@@ -301,9 +412,10 @@
         if (r[0] < p[2] && r[2] > p[0] && r[1] < p[3] && r[3] > p[1]) return;
       }
       placed.push(r);
-      ctx.strokeStyle = T.halo; ctx.strokeText(c.name, cx, cy);
-      ctx.fillStyle = T.txt; ctx.fillText(c.name, cx, cy);
+      ctx.strokeStyle = T.halo; ctx.strokeText(lname(c), cx, cy);
+      ctx.fillStyle = T.txt; ctx.fillText(lname(c), cx, cy);
     });
+    return placed;
   }
 
   function draw() {
@@ -337,7 +449,7 @@
       if (b[2] < x0 || b[0] > x1 || b[3] < y0 || b[1] > y1) return;
       if (c.ci === undefined) c.ci = hashIdx(c.id);
       ctx.fillStyle = metric ? (c.mc || T.nod) : T.land[c.ci];
-      ctx.fill(c.path); ctx.stroke(c.path);
+      ctx.fill(c.path); ctx.stroke(c.spath || c.path);
     });
     // إطار الخريطة
     ctx.lineWidth = 1.2 / view.s; ctx.strokeStyle = T.frame; ctx.strokeRect(0, 0, 360, MH);
@@ -348,7 +460,7 @@
     selected.forEach(function (id) {
       var c = byId[id]; if (!c) return;
       ctx.fillStyle = (metric && c.mc) ? c.mc : T.sel;
-      ctx.fill(c.path); ctx.stroke(c.path);
+      ctx.fill(c.path); ctx.stroke(c.spath || c.path);
     });
     ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
     // التقسيمات الإدارية للدول المحددة
@@ -364,7 +476,8 @@
         if (on) { ctx.lineWidth = 2.4 / view.s; ctx.strokeStyle = '#fff'; ctx.stroke(d.path); ctx.lineWidth = 0.9 / view.s; ctx.strokeStyle = T.dline; }
       });
     });
-    if (showLabels) drawLabels(T);
+    var placed = showLabels ? drawLabels(T) : [];
+    if (showCities) drawCities(T, placed);
   }
   $('theme').onclick = function () { theme = theme === 'day' ? 'night' : 'day'; applyTheme(); recolor(); draw(); };
   applyTheme();
@@ -419,66 +532,67 @@
     return { pop: p, area: d[1], coast: d[2] };
   }
   function row(label, value, meta) {
-    return '<div class="row"><span class="lbl">' + label + '</span><span><b>' + value + '</b>' +
-      (meta ? '<span class="meta">' + meta + '</span>' : '') + '</span></div>';
+    return '<div class="row"><span class="lbl">' + tr(label) + '</span><span><b>' + value + '</b>' +
+      (meta ? '<span class="meta">' + tr(meta) + '</span>' : '') + '</span></div>';
   }
   var EX = window.EXTRA || {};
-  function money(b) { return b >= 1000 ? (b / 1000).toFixed(2) + ' تريليون $' : fmt(b) + ' مليار $'; }
+  function money(b) { return b >= 1000 ? (b / 1000).toFixed(2) + tr(' تريليون $') : fmt(b) + tr(' مليار $'); }
   function extraHtml(id) {
-    var x = EX[id]; if (!x) return '<div class="note">لا تتوفر بيانات الديموغرافيا والاقتصاد لهذه الدولة بعد.</div>';
-    var g = x.g, h = '<details><summary>👥 الديموغرافيا</summary>' +
-      '<div class="blk"><span class="lbl">الأديان والطوائف</span>' + esc(x.r) + '</div>' +
-      '<div class="blk"><span class="lbl">الأعراق</span>' + esc(x.e) + '</div></details>';
-    h += '<details><summary>💰 الاقتصاد</summary>';
+    var x = EX[id]; if (!x) return '<div class="note">' + tr('لا تتوفر بيانات الديموغرافيا والاقتصاد لهذه الدولة بعد.') + '</div>';
+    var en = LANG === 'en' && window.EXTRA_EN && window.EXTRA_EN[id];
+    var g = x.g, h = '<details><summary>' + tr('👥 الديموغرافيا') + '</summary>' +
+      '<div class="blk"><span class="lbl">' + tr('الأديان والطوائف') + '</span>' + esc(en ? en.r : x.r) + '</div>' +
+      '<div class="blk"><span class="lbl">' + tr('الأعراق') + '</span>' + esc(en ? en.e : x.e) + '</div></details>';
+    h += '<details><summary>' + tr('💰 الاقتصاد') + '</summary>';
     if (g[0] != null) {
       h += row('الناتج المحلي', money(g[0])) + row('نصيب الفرد', fmt(g[1]) + ' $') +
         (g[2] != null ? row('النمو السنوي', g[2] + '%') : '');
     }
-    return h + '<div class="blk"><span class="lbl">أبرز القطاعات</span>' + esc(g[3]) + '</div></details>' +
-      '<div class="meta">أرقام تقريبية (' + window.EXTRA_YEAR + ')</div>';
+    return h + '<div class="blk"><span class="lbl">' + tr('أبرز القطاعات') + '</span>' + esc(en ? en.s : g[3]) + '</div></details>' +
+      '<div class="meta">' + tr('أرقام تقريبية (%y)').replace('%y', tr(window.EXTRA_YEAR)) + '</div>';
   }
-  function coastText(v) { return v === 0 ? '0 كم (دولة غير ساحلية)' : fmt(v) + ' كم'; }
+  function coastText(v) { return v === 0 ? tr('0 كم (دولة غير ساحلية)') : fmt(v) + tr(' كم'); }
 
   function render() {
     var cards = $('cards'); cards.innerHTML = '';
     selected.forEach(loadAdm);
     if (activeDiv && selected.indexOf(activeDiv.id) < 0) activeDiv = null;
     if (!selected.length) {
-      $('ptitle').textContent = 'معلومات الدول';
-      cards.innerHTML = '<div class="hint">اضغط على أي دولة على الخريطة (أو ابحث عنها بالاسم) لعرض معلوماتها. يمكنك اختيار عدة دول.</div>';
+      $('ptitle').textContent = tr('معلومات الدول');
+      cards.innerHTML = '<div class="hint">' + tr('اضغط على أي دولة على الخريطة (أو ابحث عنها بالاسم) لعرض معلوماتها. يمكنك اختيار عدة دول.') + '</div>';
       return;
     }
-    $('ptitle').textContent = 'الدول المحددة (' + selected.length + ')';
+    $('ptitle').textContent = tr('الدول المحددة (%n)').replace('%n', selected.length);
     var tp = 0, ta = 0, tc = 0, tg = 0, missing = 0, html = '';
     selected.forEach(function (id) {
       var c = byId[id], i = info(id);
-      html += '<div class="card"><div class="chead"><span>' + esc(c.name) + '</span><button data-rm="' + esc(id) + '">✕</button></div>';
+      html += '<div class="card"><div class="chead"><span>' + esc(cname(c)) + '</span><button data-rm="' + esc(id) + '">✕</button></div>';
       if (i) {
         tp += i.pop.v; ta += i.area; tc += i.coast;
-        html += row('عدد السكان', fmt(i.pop.v), i.pop.src + ' ' + i.pop.y);
-        html += row('المساحة', fmt(i.area) + ' كم²');
+        html += row('عدد السكان', fmt(i.pop.v), tr(i.pop.src) + ' ' + i.pop.y);
+        html += row('المساحة', fmt(i.area) + tr(' كم²'));
         html += row('طول السواحل', coastText(i.coast));
         if (EX[id] && EX[id].g[0] != null) tg += EX[id].g[0];
         html += extraHtml(id);
       } else {
         missing++;
-        html += '<div class="hint">لا تتوفر بيانات لهذه المنطقة.</div>';
+        html += '<div class="hint">' + tr('لا تتوفر بيانات لهذه المنطقة.') + '</div>';
       }
       html += admHtml(id);
       html += '</div>';
     });
     if (selected.length > 1) {
-      var t = '<div class="card total"><div class="chead"><span>المجموع (' + selected.length + ' دول)</span></div>';
+      var t = '<div class="card total"><div class="chead"><span>' + tr('المجموع (%n دول)').replace('%n', selected.length) + '</span></div>';
       t += row('إجمالي السكان', fmt(tp));
-      t += row('إجمالي المساحة', fmt(ta) + ' كم²');
-      t += row('إجمالي السواحل', fmt(tc) + ' كم');
+      t += row('إجمالي المساحة', fmt(ta) + tr(' كم²'));
+      t += row('إجمالي السواحل', fmt(tc) + tr(' كم'));
       if (tg) t += row('إجمالي الناتج المحلي', money(tg), 'للدول المتوفرة بياناتها فقط');
-      if (missing) t += '<div class="note">المجموع لا يشمل ' + missing + ' منطقة بلا بيانات.</div>';
+      if (missing) t += '<div class="note">' + tr('المجموع لا يشمل %n منطقة بلا بيانات.').replace('%n', missing) + '</div>';
       t += '</div>';
       html = t + html;
     }
     if (activeDiv) {
-      html = '<div class="card active"><div class="chead"><span>📍 ' + esc(activeDiv.d.name) + ' — ' + esc(byId[activeDiv.id].name) +
+      html = '<div class="card active"><div class="chead"><span>📍 ' + esc(dname(activeDiv.d)) + ' — ' + esc(cname(byId[activeDiv.id])) +
         '</span><button data-closediv="1">✕</button></div>' + divRows(activeDiv.d) + '</div>' + html;
     }
     cards.innerHTML = html;
@@ -506,10 +620,10 @@
       });
       try { localStorage.setItem('wbpop', JSON.stringify({ t: Date.now(), m: m })); } catch (e) {}
       applyWB(m); render();
-      if (manual) toast('تم تحديث بيانات السكان');
+      if (manual) toast(tr('تم تحديث بيانات السكان'));
     }).catch(function () {
       clearTimeout(to);
-      if (manual) toast('تعذّر التحديث، تحقق من الاتصال بالإنترنت');
+      if (manual) toast(tr('تعذّر التحديث، تحقق من الاتصال بالإنترنت'));
     });
   }
 
@@ -585,7 +699,7 @@
     var p = $('panel'); p.classList.toggle('collapsed');
     $('ptoggle').textContent = p.classList.contains('collapsed') ? '▴' : '▾';
   };
-  $('refresh').onclick = function () { toast('جارٍ التحديث...'); loadWB(true); };
+  $('refresh').onclick = function () { toast(tr('جارٍ التحديث...')); loadWB(true); };
   $('cards').addEventListener('click', function (e) {
     var t = e.target; if (!t || !t.getAttribute) return;
     var id = t.getAttribute('data-rm');
@@ -604,13 +718,22 @@
     res.innerHTML = '';
     if (!v) { res.style.display = 'none'; return; }
     var list = countries.filter(function (c) { return c.search.indexOf(v) >= 0; })
-      .sort(function (a, b) { return a.name.localeCompare(b.name, 'ar'); }).slice(0, 8);
-    if (!list.length) { res.style.display = 'none'; return; }
+      .sort(function (a, b) { return cname(a).localeCompare(cname(b), LANG); }).slice(0, 8);
+    var dl = [];
+    (window.ADM1_INDEX || []).forEach(function (e) {
+      if (!byId[e[0]]) return;
+      if (!e[4]) e[4] = norm(e[1]) + ' ' + norm(e[2]);
+      var at = e[4].indexOf(v);
+      if (at >= 0 && dl.length < 60) dl.push([at === 0 ? 0 : 1, e]);
+    });
+    dl.sort(function (a, b) { return a[0] - b[0]; });
+    dl = dl.slice(0, 8).map(function (x) { return x[1]; });
+    if (!list.length && !dl.length) { res.style.display = 'none'; return; }
     list.forEach(function (c) {
       var d = document.createElement('div');
       var on = selected.indexOf(c.id) >= 0;
       if (on) d.className = 'on';
-      d.innerHTML = (on ? '✓ ' : '') + esc(c.name) + '<small>' + esc(c.nameEn) + '</small>';
+      d.innerHTML = (on ? '✓ ' : '') + esc(cname(c)) + '<small>' + esc(LANG === 'en' ? c.name : c.nameEn) + '</small>';
       d.onclick = function () {
         if (selected.indexOf(c.id) < 0) { selected.push(c.id); zoomTo(c); }
         else selected.splice(selected.indexOf(c.id), 1);
@@ -619,14 +742,45 @@
       };
       res.appendChild(d);
     });
+    dl.forEach(function (e) {
+      var d = document.createElement('div'); d.className = 'dv';
+      d.innerHTML = '🗺️ ' + esc(LANG === 'en' ? (e[2] || e[1]) : (e[1] || e[2])) + '<small>' + esc(cname(byId[e[0]])) + '</small>';
+      d.onclick = function () {
+        if (selected.indexOf(e[0]) < 0) selected.push(e[0]);
+        pendingDiv = { id: e[0], c: e[3], ar: e[1], en: e[2] };
+        q.value = ''; res.style.display = 'none'; q.blur();
+        if (ADM[e[0]]) resolvePending(); else { zoomTo(byId[e[0]]); render(); draw(); }
+      };
+      res.appendChild(d);
+    });
     res.style.display = 'block';
   });
+
+  /* ---------- اللغة ---------- */
+  function applyLang() {
+    var en = LANG === 'en';
+    document.documentElement.lang = LANG; document.documentElement.dir = en ? 'ltr' : 'rtl';
+    document.title = tr('خريطة العالم');
+    $('q').placeholder = tr('ابحث عن دولة وأضفها...');
+    $('mbtn').title = tr('تلوين الخريطة حسب بيان'); $('theme').title = tr('نهاري / ليلي');
+    $('refresh').title = tr('تحديث بيانات السكان من الإنترنت'); $('zlab').title = tr('أسماء الدول'); $('zcity').title = tr('المدن');
+    $('pclear').textContent = tr('مسح');
+    $('lang').textContent = en ? 'ع' : 'EN';
+    $('credit').innerHTML = en
+      ? 'Prepared by Eng. Abdulrahman Hawa 0950505109<br>For more apps click <a href="' + DRIVE + '" target="_blank" rel="noopener">here</a>'
+      : 'من إعداد المهندس عبدالرحمن حوا 0950505109<br>لمزيد من التطبيقات اضغط <a href="' + DRIVE + '" target="_blank" rel="noopener">هنا</a>';
+    try { localStorage.setItem('wm_lang', LANG); } catch (e) {}
+    countries.forEach(function (c) { c.tw = undefined; });
+    Object.keys(ADM).forEach(function (k) { if (ADM[k]) ADM[k].forEach(function (d) { d.tw = undefined; }); });
+    buildMenu(); recolor(); render(); draw();
+  }
+  $('lang').onclick = function () { LANG = LANG === 'en' ? 'ar' : 'en'; res.style.display = 'none'; q.value = ''; applyLang(); };
 
   /* ---------- تشغيل ---------- */
   build();
   window.addEventListener('resize', resize);
   resize();
-  render();
+  applyLang();
   try {
     var cache = JSON.parse(localStorage.getItem('wbpop') || 'null');
     if (cache && cache.m) { applyWB(cache.m); render(); }

@@ -1,0 +1,32 @@
+// قاموس الترجمة إلى الإنجليزية (المفتاح هو النص العربي)
+window.I18N_EN = {
+'المدن':'Cities','المدن: مفعّلة':'Cities: on','المدن: مخفية':'Cities: off',
+'خريطة العالم':'World Map','ابحث عن دولة وأضفها...':'Search for a country...','تلوين الخريطة حسب بيان':'Color the map by a statistic',
+'نهاري / ليلي':'Day / Night','تحديث بيانات السكان من الإنترنت':'Update population data online','أسماء الدول':'Country names',
+'معلومات الدول':'Country information','مسح':'Clear',
+'ملف الخريطة (data/world.js) غير موجود. شغّل scripts/fetch_world.sh ثم أعد البناء.':'Map file (data/world.js) is missing. Run scripts/fetch_world.sh then rebuild.',
+' مليار':' billion',' مليون':' million',' ألف':'K',' كم²':' km²',' /كم²':' /km²',' كم':' km',' تريليون $':' trillion $',' مليار $':' billion $',
+'بدون تلوين':'No coloring','عدد السكان':'Population','المساحة':'Area','الكثافة السكانية':'Population density',
+'الناتج المحلي (29 دولة)':'GDP (29 countries)','نصيب الفرد (29 دولة)':'GDP per capita (29 countries)','النمو الاقتصادي (29 دولة)':'Economic growth (29 countries)',
+'أسماء الدول: مفعّلة':'Country names: on','أسماء الدول: مخفية':'Country names: off',
+'لا تتوفر تقسيمات إدارية لهذه الدولة.':'No administrative divisions available for this country.',
+'بيانات التقسيمات الإدارية غير مثبّتة (شغّل scripts/build_admin1.js ثم أعد البناء).':'Administrative division data is not installed (run scripts/build_admin1.js then rebuild).',
+'جارٍ تحميل التقسيمات الإدارية…':'Loading administrative divisions…',
+'🗺️ التقسيمات الإدارية (%n)':'🗺️ Administrative divisions (%n)',
+'اضغط على أي تقسيم (هنا أو على الخريطة) لعرض معلوماته.':'Tap any division (here or on the map) to see its details.',
+'الاسم':'Name','بالإنجليزية':'In English','الاسم العربي':'Arabic name','النوع':'Type','الإقليم':'Region','المركز':'Capital / seat',
+'تقريبية':'approx.','تقدير 2011':'2011 estimate','الرمز (ISO 3166-2)':'Code (ISO 3166-2)',
+'لا تتوفر بيانات الديموغرافيا والاقتصاد لهذه الدولة بعد.':'Demographics and economy data is not available for this country yet.',
+'👥 الديموغرافيا':'👥 Demographics','الأديان والطوائف':'Religions & sects','الأعراق':'Ethnic groups','💰 الاقتصاد':'💰 Economy',
+'الناتج المحلي':'GDP','نصيب الفرد':'GDP per capita','النمو السنوي':'Annual growth','أبرز القطاعات':'Main sectors',
+'أرقام تقريبية (%y)':'Approximate figures (%y)','2024 تقريباً':'about 2024',
+'0 كم (دولة غير ساحلية)':'0 km (landlocked)',
+'اضغط على أي دولة على الخريطة (أو ابحث عنها بالاسم) لعرض معلوماتها. يمكنك اختيار عدة دول.':'Tap any country on the map (or search by name) to see its information. You can select several countries.',
+'الدول المحددة (%n)':'Selected countries (%n)','تقدير مدمج':'Built-in estimate','البنك الدولي':'World Bank',
+'طول السواحل':'Coastline','لا تتوفر بيانات لهذه المنطقة.':'No data available for this territory.',
+'المجموع (%n دول)':'Total (%n countries)','إجمالي السكان':'Total population','إجمالي المساحة':'Total area','إجمالي السواحل':'Total coastline',
+'إجمالي الناتج المحلي':'Total GDP','للدول المتوفرة بياناتها فقط':'for countries with data only',
+'المجموع لا يشمل %n منطقة بلا بيانات.':'Total excludes %n territories without data.',
+'جارٍ التحديث...':'Updating...','تم تحديث بيانات السكان':'Population data updated','تعذّر التحديث، تحقق من الاتصال بالإنترنت':'Update failed, check your internet connection'
+};
+window.I18N_DTYPE_AR = { Governorate: 'محافظة', Province: 'مقاطعة / محافظة', State: 'ولاية', Region: 'منطقة', District: 'منطقة', County: 'مقاطعة', Prefecture: 'محافظة', Department: 'دائرة / مقاطعة', Municipality: 'بلدية', Emirate: 'إمارة', Wilaya: 'ولاية', Canton: 'كانتون', Oblast: 'أوبلاست', Territory: 'إقليم', Parish: 'أبرشية', City: 'مدينة', Republic: 'جمهورية' };
