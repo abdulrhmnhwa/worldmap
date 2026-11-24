@@ -58,3 +58,10 @@ summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--acc);padding:2
 #ltitle{font-size:12px;font-weight:700;margin-bottom:5px;direction:rtl;text-align:right}
 #lbar{height:10px;border-radius:5px;border:1px solid var(--bd)}
 #lrange{display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:3px}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:6px 0}
+.chip{border:1px solid var(--bd);background:var(--panel);color:var(--fg);border-radius:14px;padding:4px 10px;font-size:13px;cursor:pointer}
+.chip.on{background:var(--acc);color:#111;border-color:var(--acc)}
+.card.active{border-color:var(--acc)}
+#credit{flex:none;text-align:center;font-size:12px;color:var(--mut);padding:6px 10px 8px;border-top:1px solid var(--line);line-height:1.6}
+#credit a{color:var(--acc);font-weight:700;text-decoration:none}

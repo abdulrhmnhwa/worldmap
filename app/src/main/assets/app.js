@@ -108,11 +108,11 @@
     night: { sea1: '#0e2a43', sea2: '#081726', out: '#050f1a', grid: 'rgba(140,180,220,.10)', eq: 'rgba(245,166,35,.22)',
       land: ['#2f4a63', '#365a6e', '#3a5a5f', '#34506b', '#44546f', '#375c55'], line: 'rgba(190,215,240,.55)',
       sel: '#f5a623', selLine: '#ffffff', glow: 'rgba(245,166,35,.85)', frame: 'rgba(140,180,220,.35)',
-      nod: '#243447', halo: 'rgba(5,15,26,.85)', txt: '#eaf2fa', ramp: ['#1c3f6b', '#2a9d8f', '#f5e663'] },
+      nod: '#243447', halo: 'rgba(5,15,26,.85)', txt: '#eaf2fa', ramp: ['#1c3f6b', '#2a9d8f', '#f5e663'], dline: 'rgba(255,255,255,.85)' },
     day: { sea1: '#bfe0f2', sea2: '#8ec5e3', out: '#dfeef6', grid: 'rgba(40,90,130,.13)', eq: 'rgba(224,138,0,.35)',
       land: ['#efe4c6', '#e2ebcb', '#ecd9b8', '#d9e6c6', '#f3e8c4', '#dfdcc0'], line: 'rgba(90,100,90,.55)',
       sel: '#ee8f00', selLine: '#ffffff', glow: 'rgba(224,138,0,.8)', frame: 'rgba(40,90,130,.35)',
-      nod: '#e3e6ea', halo: 'rgba(255,255,255,.85)', txt: '#1b2a38', ramp: ['#fff1c1', '#f6a04d', '#b3261e'] }
+      nod: '#e3e6ea', halo: 'rgba(255,255,255,.85)', txt: '#1b2a38', ramp: ['#fff1c1', '#f6a04d', '#b3261e'], dline: 'rgba(255,255,255,.95)' }
   };
 
   /* ---------- التلوين حسب البيان ---------- */
@@ -184,6 +184,98 @@
   }
   function hashIdx(id) { var h = 0; for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h % 6; }
 
+  /* ---------- التقسيمات الإدارية (تظهر للدولة المحددة فقط) ---------- */
+  var ADM = {}, ADM_NA = {}, activeDiv = null, DTINT = [0, 0.12, 0.22, 0.06, 0.17, 0.28];
+  var DTYPE = { Governorate: 'محافظة', Province: 'مقاطعة / محافظة', State: 'ولاية', Region: 'منطقة', District: 'منطقة', County: 'مقاطعة',
+    Prefecture: 'محافظة', Department: 'دائرة / مقاطعة', Municipality: 'بلدية', Emirate: 'إمارة', Wilaya: 'ولاية', Canton: 'كانتون',
+    Oblast: 'أوبلاست', Territory: 'إقليم', Parish: 'أبرشية', City: 'مدينة', Republic: 'جمهورية', Governorate_: 'محافظة' };
+  var XIDX = {};
+  (window.ADM1_EXTRA || []).forEach(function (x) { XIDX[x.c] = x; XIDX[norm(x.ar)] = x; });
+  window.ADM1_LOAD = function (id, feats) {
+    ADM[id] = feats.map(function (f) {
+      var path = new Path2D(), polys = [], main = null, ma = -1, bb = [1e9, 1e9, -1e9, -1e9];
+      f.g.forEach(function (poly) {
+        var pb = [1e9, 1e9, -1e9, -1e9], rings = [];
+        poly.forEach(function (flat) {
+          var w = new Array(flat.length);
+          for (var i = 0; i < flat.length; i += 2) {
+            var x = flat[i] + 180, y = TOP - flat[i + 1];
+            w[i] = x; w[i + 1] = y;
+            if (x < pb[0]) pb[0] = x; if (y < pb[1]) pb[1] = y; if (x > pb[2]) pb[2] = x; if (y > pb[3]) pb[3] = y;
+            if (i === 0) path.moveTo(x, y); else path.lineTo(x, y);
+          }
+          path.closePath(); rings.push(w);
+        });
+        var a = (pb[2] - pb[0]) * (pb[3] - pb[1]);
+        polys.push({ bb: pb, rings: rings });
+        if (a > ma) { ma = a; main = pb; }
+        if (pb[0] < bb[0]) bb[0] = pb[0]; if (pb[1] < bb[1]) bb[1] = pb[1]; if (pb[2] > bb[2]) bb[2] = pb[2]; if (pb[3] > bb[3]) bb[3] = pb[3];
+      });
+      var p = f.p;
+      return { p: p, path: path, polys: polys, main: main, bbox: bb, name: p.n || p.e || '؟', ci: hashIdx(p.c || p.e || 'x'),
+        x: XIDX[p.c] || XIDX[norm(p.n || '')] || null };
+    });
+    render(); draw();
+  };
+  function loadAdm(id) {
+    if (ADM[id] || ADM_NA[id] === 0) return;
+    if (window.ADM1_AVAIL && window.ADM1_AVAIL.indexOf(id) < 0) { ADM_NA[id] = 1; return; }
+    ADM_NA[id] = 0;
+    var s = document.createElement('script');
+    s.src = 'data/admin1/' + id + '.js';
+    s.onerror = function () { ADM_NA[id] = 1; render(); };
+    document.head.appendChild(s);
+  }
+  function hitDiv(id, px, py) {
+    var L = ADM[id]; if (!L) return null;
+    var wx = (px - view.tx) / view.s, wy = (py - view.ty) / view.s;
+    for (var i = 0; i < L.length; i++) {
+      var d = L[i];
+      if (wx < d.bbox[0] || wx > d.bbox[2] || wy < d.bbox[1] || wy > d.bbox[3]) continue;
+      for (var j = 0; j < d.polys.length; j++) {
+        var p = d.polys[j];
+        if (wx < p.bb[0] || wx > p.bb[2] || wy < p.bb[1] || wy > p.bb[3]) continue;
+        var cnt = 0;
+        for (var k = 0; k < p.rings.length; k++) if (inRing(wx, wy, p.rings[k])) cnt++;
+        if (cnt % 2 === 1) return d;
+      }
+    }
+    return null;
+  }
+  function divRows(d) {
+    var p = d.p, x = d.x, h = '';
+    h += row('الاسم', d.name);
+    if (p.e && p.e !== d.name) h += row('بالإنجليزية', p.e);
+    if (p.t) h += row('النوع', DTYPE[p.t] || p.t);
+    if (p.r) h += row('الإقليم', p.r);
+    if (x && x.cap) h += row('المركز', x.cap);
+    var area = x && x.a ? x.a : p.a;
+    if (area) h += row('المساحة', fmt(area) + ' كم²', 'تقريبية');
+    if (x && x.p) h += row('عدد السكان', fmt(x.p), 'تقدير 2011');
+    if (p.c) h += row('الرمز (ISO 3166-2)', p.c);
+    return h;
+  }
+  function admHtml(id) {
+    var L = ADM[id];
+    if (!L) {
+      if (ADM_NA[id] === 1) return '<div class="note">' + (window.ADM1_AVAIL ? 'لا تتوفر تقسيمات إدارية لهذه الدولة.' : 'بيانات التقسيمات الإدارية غير مثبّتة (شغّل scripts/build_admin1.js ثم أعد البناء).') + '</div>';
+      return '<div class="note">جارٍ تحميل التقسيمات الإدارية…</div>';
+    }
+    var sorted = L.slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'ar'); });
+    var open = activeDiv && activeDiv.id === id ? ' open' : '';
+    var h = '<details' + open + '><summary>🗺️ التقسيمات الإدارية (' + L.length + ')</summary><div class="chips">';
+    sorted.forEach(function (d) {
+      h += '<button class="chip' + (activeDiv && activeDiv.d === d ? ' on' : '') + '" data-div="' + esc(id) + '|' + L.indexOf(d) + '">' + esc(d.name) + '</button>';
+    });
+    h += '</div><div class="note">اضغط على أي تقسيم (هنا أو على الخريطة) لعرض معلوماته.</div></details>';
+    return h;
+  }
+  function setActive(id, d) {
+    activeDiv = (activeDiv && activeDiv.d === d) ? null : { id: id, d: d };
+    var pn = $('panel'); pn.classList.remove('collapsed'); $('ptoggle').textContent = '▾';
+    render(); draw(); $('cards').scrollTop = 0;
+  }
+
   function drawLabels(T) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var fs = Math.min(15, 9.5 + Math.log(view.s / minS) / Math.LN2 * 1.1);
@@ -191,7 +283,10 @@
     ctx.font = '600 ' + fs + 'px' + fam;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.lineWidth = 3;
     var placed = [];
-    countries.forEach(function (c) {
+    var items = [];
+    selected.forEach(function (id) { if (ADM[id]) items = items.concat(ADM[id]); });
+    items = items.concat(countries.filter(function (c) { return !(selected.indexOf(c.id) >= 0 && ADM[c.id]); }));
+    items.forEach(function (c) {
       var m = c.main; if (!m) return;
       var cx = (m[0] + m[2]) / 2 * view.s + view.tx, cy = (m[1] + m[3]) / 2 * view.s + view.ty;
       if (cx < -40 || cx > W + 40 || cy < 0 || cy > H) return;
@@ -256,6 +351,19 @@
       ctx.fill(c.path); ctx.stroke(c.path);
     });
     ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+    // التقسيمات الإدارية للدول المحددة
+    selected.forEach(function (id) {
+      var L = ADM[id]; if (!L) return;
+      ctx.lineWidth = 0.9 / view.s; ctx.strokeStyle = T.dline;
+      L.forEach(function (d) {
+        var b = d.bbox;
+        if (b[2] < x0 || b[0] > x1 || b[3] < y0 || b[1] > y1) return;
+        var on = activeDiv && activeDiv.d === d;
+        ctx.fillStyle = on ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,' + DTINT[d.ci] + ')';
+        ctx.fill(d.path); ctx.stroke(d.path);
+        if (on) { ctx.lineWidth = 2.4 / view.s; ctx.strokeStyle = '#fff'; ctx.stroke(d.path); ctx.lineWidth = 0.9 / view.s; ctx.strokeStyle = T.dline; }
+      });
+    });
     if (showLabels) drawLabels(T);
   }
   $('theme').onclick = function () { theme = theme === 'day' ? 'night' : 'day'; applyTheme(); recolor(); draw(); };
@@ -333,6 +441,8 @@
 
   function render() {
     var cards = $('cards'); cards.innerHTML = '';
+    selected.forEach(loadAdm);
+    if (activeDiv && selected.indexOf(activeDiv.id) < 0) activeDiv = null;
     if (!selected.length) {
       $('ptitle').textContent = 'معلومات الدول';
       cards.innerHTML = '<div class="hint">اضغط على أي دولة على الخريطة (أو ابحث عنها بالاسم) لعرض معلوماتها. يمكنك اختيار عدة دول.</div>';
@@ -354,6 +464,7 @@
         missing++;
         html += '<div class="hint">لا تتوفر بيانات لهذه المنطقة.</div>';
       }
+      html += admHtml(id);
       html += '</div>';
     });
     if (selected.length > 1) {
@@ -365,6 +476,10 @@
       if (missing) t += '<div class="note">المجموع لا يشمل ' + missing + ' منطقة بلا بيانات.</div>';
       t += '</div>';
       html = t + html;
+    }
+    if (activeDiv) {
+      html = '<div class="card active"><div class="chead"><span>📍 ' + esc(activeDiv.d.name) + ' — ' + esc(byId[activeDiv.id].name) +
+        '</span><button data-closediv="1">✕</button></div>' + divRows(activeDiv.d) + '</div>' + html;
     }
     cards.innerHTML = html;
   }
@@ -445,7 +560,13 @@
     delete ptrs[e.pointerId];
     if (tapStart && !tapStart.moved && Date.now() - tapStart.t < 500 && e.type === 'pointerup') {
       var c = hitTest(tapStart.x, tapStart.y);
-      if (c) toggle(c.id);
+      if (c) {
+        if (selected.indexOf(c.id) >= 0 && ADM[c.id]) {
+          var dd = hitDiv(c.id, tapStart.x, tapStart.y);
+          if (dd) setActive(c.id, dd);
+          else if (activeDiv) { activeDiv = null; render(); draw(); }
+        } else toggle(c.id);
+      }
     }
     tapStart = null;
   }
@@ -466,8 +587,15 @@
   };
   $('refresh').onclick = function () { toast('جارٍ التحديث...'); loadWB(true); };
   $('cards').addEventListener('click', function (e) {
-    var id = e.target && e.target.getAttribute && e.target.getAttribute('data-rm');
-    if (id) toggle(id);
+    var t = e.target; if (!t || !t.getAttribute) return;
+    var id = t.getAttribute('data-rm');
+    if (id) { toggle(id); return; }
+    if (t.getAttribute('data-closediv')) { activeDiv = null; render(); draw(); return; }
+    var dv = t.getAttribute('data-div');
+    if (dv) {
+      var pr = dv.split('|'), d = ADM[pr[0]] && ADM[pr[0]][+pr[1]];
+      if (d) { activeDiv = null; setActive(pr[0], d); zoomTo(d); }
+    }
   });
 
   var q = $('q'), res = $('results');

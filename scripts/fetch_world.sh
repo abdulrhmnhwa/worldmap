@@ -11,3 +11,10 @@ curl -fsSL "$BASE/ne_50m_admin_0_countries.geojson" -o "$TMP" \
 { printf 'window.WORLD='; cat "$TMP"; printf ';\n'; } > "$OUT"
 rm -f "$TMP"
 echo "OK: $OUT ($(wc -c < "$OUT") bytes)"
+
+# التقسيمات الإدارية (تحتاج Node.js)
+if command -v node >/dev/null 2>&1; then
+  node scripts/build_admin1.js || echo "تحذير: فشل تنزيل التقسيمات الإدارية (التطبيق سيعمل بدونها)"
+else
+  echo "تنبيه: Node.js غير مثبّت، لن تظهر التقسيمات الإدارية. ثبّته من nodejs.org ثم شغّل: node scripts/build_admin1.js"
+fi
