@@ -1,5 +1,14 @@
 // قاموس الترجمة إلى الإنجليزية (المفتاح هو النص العربي)
 window.I18N_EN = {
+'📈 التنمية والخدمات':'📈 Development & services','مؤشر التنمية البشرية (HDI)':'Human Development Index (HDI)','متوسط العمر المتوقع':'Life expectancy','القراءة والكتابة (بالغون)':'Adult literacy','مستخدمو الإنترنت':'Internet users','سكان المدن':'Urban population','سنة':'yrs','2022–2023 تقريباً':'about 2022–2023',
+'مرتفعة جداً':'Very high','مرتفعة':'High','متوسطة':'Medium','منخفضة':'Low',
+'مقارنة':'Compare','تصدير PDF':'Export PDF','الدول':'Countries','السيناريوهات':'Scenarios','اختر دولتين أو أكثر للمقارنة':'Select two or more countries to compare','اختر سيناريوهين أو أكثر للمقارنة':'Select two or more scenarios to compare',
+'اسم السيناريو':'Scenario name','حفظ الاختيار الحالي':'Save current selection','الاختيار الحالي':'Current selection','تحميل':'Load','دولة':'countries','سيناريو':'Scenario','اختر دولة واحدة على الأقل':'Select at least one country',
+'المجاميع للدول المتوفرة بياناتها؛ المتوسطات موزونة بعدد السكان (والنمو بالناتج المحلي).':'Totals cover countries with available data; averages are population-weighted (growth is GDP-weighted).',
+'تقرير خريطة العالم':'World Map Report','مقارنة السيناريوهات':'Scenario comparison','مقارنة الدول':'Country comparison','نظام الحكم':'System of government',
+
+'المحافظات':'Provinces','المحافظات: مفعّلة':'Provinces: on','المحافظات: مخفية':'Provinces: off','نظام الحكم':'System of government',
+'⚽ المنتخبات':'⚽ National teams','💱 العملة والسياسة المالية':'💱 Currency & fiscal policy','🏛️ الإدارة والتمثيل السياسي':'🏛️ Administration & political representation',
 'المدن':'Cities','المدن: مفعّلة':'Cities: on','المدن: مخفية':'Cities: off',
 'خريطة العالم':'World Map','ابحث عن دولة وأضفها...':'Search for a country...','تلوين الخريطة حسب بيان':'Color the map by a statistic',
 'نهاري / ليلي':'Day / Night','تحديث بيانات السكان من الإنترنت':'Update population data online','أسماء الدول':'Country names',
@@ -16,7 +25,7 @@ window.I18N_EN = {
 'اضغط على أي تقسيم (هنا أو على الخريطة) لعرض معلوماته.':'Tap any division (here or on the map) to see its details.',
 'الاسم':'Name','بالإنجليزية':'In English','الاسم العربي':'Arabic name','النوع':'Type','الإقليم':'Region','المركز':'Capital / seat',
 'تقريبية':'approx.','تقدير 2011':'2011 estimate','الرمز (ISO 3166-2)':'Code (ISO 3166-2)',
-'لا تتوفر بيانات الديموغرافيا والاقتصاد لهذه الدولة بعد.':'Demographics and economy data is not available for this country yet.',
+'لا تتوفر بيانات الديموغرافيا والاقتصاد والعملة والمنتخبات والتنمية لهذه الدولة بعد.':'Demographics, economy, currency, national team and development data is not available for this country yet.',
 '👥 الديموغرافيا':'👥 Demographics','الأديان والطوائف':'Religions & sects','الأعراق':'Ethnic groups','💰 الاقتصاد':'💰 Economy',
 'الناتج المحلي':'GDP','نصيب الفرد':'GDP per capita','النمو السنوي':'Annual growth','أبرز القطاعات':'Main sectors',
 'أرقام تقريبية (%y)':'Approximate figures (%y)','2024 تقريباً':'about 2024',

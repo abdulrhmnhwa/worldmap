@@ -1,10 +1,15 @@
 package com.example.worldmapinfo;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -38,6 +43,19 @@ public class MainActivity extends Activity {
                 return false;
             }
         });
+        web.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void printPage() {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
+                        PrintDocumentAdapter adapter = web.createPrintDocumentAdapter("WorldMapInfo");
+                        pm.print("WorldMapInfo", adapter, new PrintAttributes.Builder().build());
+                    }
+                });
+            }
+        }, "AndroidPrint");
         setContentView(web);
         web.loadUrl("file:///android_asset/index.html");
     }

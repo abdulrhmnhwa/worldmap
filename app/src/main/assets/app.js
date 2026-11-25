@@ -25,6 +25,41 @@
   function cname(c) { return LANG === 'en' ? c.nameEn : c.name; }
   function dname(d) { var p = d.p; return LANG === 'en' ? (p.e || p.n || '?') : (p.n || p.e || '؟'); }
   function lname(c) { return c.p ? dname(c) : cname(c); }
+  var showDivs = true;
+  try { var sd = localStorage.getItem('wm_divs'); if (sd !== null) showDivs = sd === '1'; } catch (e) {}
+  var EMBN = { 'United States of America': 'United States', 'Democratic Republic of the Congo': 'Democratic Republic of the Congo', 'Czechia': 'Czech Republic',
+    'Dominican Rep.': 'Dominican Republic', 'Bosnia and Herz.': 'Bosnia and Herzegovina', 'Central African Rep.': 'Central African Republic',
+    'Eq. Guinea': 'Equatorial Guinea', 'eSwatini': 'Eswatini', 'S. Sudan': 'South Sudan', 'W. Sahara': 'Western Sahara' };
+  window.WM_EMB = function (img) {
+    var i = +img.getAttribute('data-i') + 1, n = img.getAttribute('data-n');
+    var f = ['Coat of arms of ', 'Emblem of ', 'Coat of arms of the ', 'Emblem of the '];
+    if (i >= f.length) { img.style.display = 'none'; return; }
+    img.setAttribute('data-i', i);
+    img.src = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(f[i] + n + '.svg') + '?width=96';
+  };
+  window.WM_FLAG = function (img) {
+    var s = document.createElement('span'); s.className = 'flagemo'; s.textContent = img.getAttribute('data-e');
+    if (img.parentNode) img.parentNode.replaceChild(s, img);
+  };
+  function flagsHtml(c) {
+    if (!c.iso2) return '';
+    var up = c.iso2.toUpperCase();
+    var emo = String.fromCodePoint(127397 + up.charCodeAt(0), 127397 + up.charCodeAt(1));
+    var nm = EMBN[c.nameEn] || c.nameEn;
+    return '<div class="flags"><img class="flag" alt="" data-e="' + emo + '" src="https://flagcdn.com/w80/' + c.iso2.toLowerCase() + '.png" onerror="WM_FLAG(this)">' +
+      '<img class="emblem" alt="" data-i="0" data-n="' + esc(nm) + '" src="https://commons.wikimedia.org/wiki/Special:FilePath/' +
+      encodeURIComponent('Coat of arms of ' + nm + '.svg') + '?width=96" onerror="WM_EMB(this)"></div>';
+  }
+  function govRow(id) {
+    var g = window.GOV && window.GOV[id], t = g && window.GOV_TYPES[g];
+    return t ? row('نظام الحكم', t[LANG === 'en' ? 1 : 0]) : '';
+  }
+  function moreHtml(id) {
+    var m = window.MORE && window.MORE[id]; if (!m) return '';
+    var k = LANG === 'en' ? 1 : 0;
+    function sec(title, txt) { return '<details><summary>' + tr(title) + '</summary><div class="blk">' + esc(txt[k]) + '</div></details>'; }
+    return sec('⚽ المنتخبات', m.t) + sec('💱 العملة والسياسة المالية', m.c) + sec('🏛️ الإدارة والتمثيل السياسي', m.p);
+  }
   var DRIVE = 'https://drive.google.com/drive/folders/1guT6C4OD5waAmNoqhW-IxUcvZhby55aS?usp=drive_link';
   function norm(s) {
     return String(s || '').toLowerCase()
@@ -118,6 +153,7 @@
         id: id,
         name: p.NAME_AR || p.NAME_EN || p.NAME || id,
         nameEn: p.NAME_EN || p.NAME || id,
+        iso2: id === 'KOS' ? 'XK' : (p.ISO_A2_EH && p.ISO_A2_EH !== '-99' ? p.ISO_A2_EH : (p.ISO_A2 && p.ISO_A2 !== '-99' ? p.ISO_A2 : '')),
         path: path, spath: spath, polys: polys, bbox: bb, main: main
       };
       c.search = norm(c.name) + ' ' + norm(c.nameEn);
@@ -321,6 +357,7 @@
     return h;
   }
   function admHtml(id) {
+    if (!showDivs) return '';
     var L = ADM[id];
     if (!L) {
       if (ADM_NA[id] === 1) return '<div class="note">' + tr(window.ADM1_AVAIL ? 'لا تتوفر تقسيمات إدارية لهذه الدولة.' : 'بيانات التقسيمات الإدارية غير مثبّتة (شغّل scripts/build_admin1.js ثم أعد البناء).') + '</div>';
@@ -386,6 +423,13 @@
     toast(tr(showCities ? 'المدن: مفعّلة' : 'المدن: مخفية')); draw();
   };
   syncCityBtn();
+  function syncDivBtn() { $('zdiv').className = showDivs ? '' : 'off'; }
+  $('zdiv').onclick = function () {
+    showDivs = !showDivs; if (!showDivs) activeDiv = null; syncDivBtn();
+    try { localStorage.setItem('wm_divs', showDivs ? '1' : '0'); } catch (e) {}
+    toast(tr(showDivs ? 'المحافظات: مفعّلة' : 'المحافظات: مخفية')); render(); draw();
+  };
+  syncDivBtn();
 
   function drawLabels(T) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -395,8 +439,8 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.lineWidth = 3;
     var placed = [];
     var items = [];
-    selected.forEach(function (id) { if (ADM[id]) items = items.concat(ADM[id]); });
-    items = items.concat(countries.filter(function (c) { return !(selected.indexOf(c.id) >= 0 && ADM[c.id]); }));
+    selected.forEach(function (id) { if (showDivs && ADM[id]) items = items.concat(ADM[id]); });
+    items = items.concat(countries.filter(function (c) { return !(showDivs && selected.indexOf(c.id) >= 0 && ADM[c.id]); }));
     items.forEach(function (c) {
       var m = c.main; if (!m) return;
       var cx = (m[0] + m[2]) / 2 * view.s + view.tx, cy = (m[1] + m[3]) / 2 * view.s + view.ty;
@@ -465,7 +509,7 @@
     ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
     // التقسيمات الإدارية للدول المحددة
     selected.forEach(function (id) {
-      var L = ADM[id]; if (!L) return;
+      var L = showDivs && ADM[id]; if (!L) return;
       ctx.lineWidth = 0.9 / view.s; ctx.strokeStyle = T.dline;
       L.forEach(function (d) {
         var b = d.bbox;
@@ -538,7 +582,7 @@
   var EX = window.EXTRA || {};
   function money(b) { return b >= 1000 ? (b / 1000).toFixed(2) + tr(' تريليون $') : fmt(b) + tr(' مليار $'); }
   function extraHtml(id) {
-    var x = EX[id]; if (!x) return '<div class="note">' + tr('لا تتوفر بيانات الديموغرافيا والاقتصاد لهذه الدولة بعد.') + '</div>';
+    var x = EX[id]; if (!x) return '<div class="note">' + tr('لا تتوفر بيانات الديموغرافيا والاقتصاد والعملة والمنتخبات والتنمية لهذه الدولة بعد.') + '</div>';
     var en = LANG === 'en' && window.EXTRA_EN && window.EXTRA_EN[id];
     var g = x.g, h = '<details><summary>' + tr('👥 الديموغرافيا') + '</summary>' +
       '<div class="blk"><span class="lbl">' + tr('الأديان والطوائف') + '</span>' + esc(en ? en.r : x.r) + '</div>' +
@@ -555,7 +599,7 @@
 
   function render() {
     var cards = $('cards'); cards.innerHTML = '';
-    selected.forEach(loadAdm);
+    if (showDivs) selected.forEach(loadAdm);
     if (activeDiv && selected.indexOf(activeDiv.id) < 0) activeDiv = null;
     if (!selected.length) {
       $('ptitle').textContent = tr('معلومات الدول');
@@ -567,6 +611,7 @@
     selected.forEach(function (id) {
       var c = byId[id], i = info(id);
       html += '<div class="card"><div class="chead"><span>' + esc(cname(c)) + '</span><button data-rm="' + esc(id) + '">✕</button></div>';
+      html += flagsHtml(c);
       if (i) {
         tp += i.pop.v; ta += i.area; tc += i.coast;
         html += row('عدد السكان', fmt(i.pop.v), tr(i.pop.src) + ' ' + i.pop.y);
@@ -578,6 +623,7 @@
         missing++;
         html += '<div class="hint">' + tr('لا تتوفر بيانات لهذه المنطقة.') + '</div>';
       }
+      html += govRow(id) + moreHtml(id) + devHtml(id);
       html += admHtml(id);
       html += '</div>';
     });
@@ -675,7 +721,7 @@
     if (tapStart && !tapStart.moved && Date.now() - tapStart.t < 500 && e.type === 'pointerup') {
       var c = hitTest(tapStart.x, tapStart.y);
       if (c) {
-        if (selected.indexOf(c.id) >= 0 && ADM[c.id]) {
+        if (showDivs && selected.indexOf(c.id) >= 0 && ADM[c.id]) {
           var dd = hitDiv(c.id, tapStart.x, tapStart.y);
           if (dd) setActive(c.id, dd);
           else if (activeDiv) { activeDiv = null; render(); draw(); }
@@ -720,7 +766,7 @@
     var list = countries.filter(function (c) { return c.search.indexOf(v) >= 0; })
       .sort(function (a, b) { return cname(a).localeCompare(cname(b), LANG); }).slice(0, 8);
     var dl = [];
-    (window.ADM1_INDEX || []).forEach(function (e) {
+    (showDivs ? (window.ADM1_INDEX || []) : []).forEach(function (e) {
       if (!byId[e[0]]) return;
       if (!e[4]) e[4] = norm(e[1]) + ' ' + norm(e[2]);
       var at = e[4].indexOf(v);
@@ -756,6 +802,162 @@
     res.style.display = 'block';
   });
 
+  /* ---------- التنمية والخدمات ---------- */
+  function hdiCat(v) { return v >= 0.8 ? 'مرتفعة جداً' : v >= 0.7 ? 'مرتفعة' : v >= 0.55 ? 'متوسطة' : 'منخفضة'; }
+  function devHtml(id) {
+    var d = window.DEV && window.DEV[id]; if (!d) return '';
+    return '<details><summary>' + tr('📈 التنمية والخدمات') + '</summary>' +
+      row('مؤشر التنمية البشرية (HDI)', d[0].toFixed(3), hdiCat(d[0])) +
+      row('متوسط العمر المتوقع', d[1] + ' ' + tr('سنة')) +
+      row('القراءة والكتابة (بالغون)', d[2] + '%') +
+      row('مستخدمو الإنترنت', d[3] + '%') +
+      row('سكان المدن', d[4] + '%') +
+      '<div class="meta">' + tr('أرقام تقريبية (%y)').replace('%y', tr('2022–2023 تقريباً')) + '</div></details>';
+  }
+
+  /* ---------- المقارنة والسيناريوهات وتصدير PDF ---------- */
+  function pct(v) { return v + '%'; }
+  var CROWS = [
+    ['عدد السكان', 'pop', fmt], ['المساحة', 'area', function (v) { return fmt(v) + tr(' كم²'); }],
+    ['الكثافة السكانية', 'dens', function (v) { return fmt(v) + tr(' /كم²'); }], ['طول السواحل', 'coast', function (v) { return fmt(v) + tr(' كم'); }],
+    ['الناتج المحلي', 'gdp', function (v) { return money(v); }], ['نصيب الفرد', 'gpc', function (v) { return fmt(v) + ' $'; }],
+    ['النمو السنوي', 'gro', function (v) { return v.toFixed(1) + '%'; }], ['مؤشر التنمية البشرية (HDI)', 'hdi', function (v) { return v.toFixed(3); }],
+    ['متوسط العمر المتوقع', 'life', function (v) { return Math.round(v * 10) / 10 + ' ' + tr('سنة'); }],
+    ['القراءة والكتابة (بالغون)', 'lit', function (v) { return Math.round(v) + '%'; }],
+    ['مستخدمو الإنترنت', 'net', function (v) { return Math.round(v) + '%'; }], ['سكان المدن', 'urb', function (v) { return Math.round(v) + '%'; }]
+  ];
+  var DEVK = { hdi: 0, life: 1, lit: 2, net: 3, urb: 4 };
+  function mval(id, k) {
+    var i = info(id), d = (window.DEV || {})[id], x = EX[id];
+    if (k === 'pop') return i ? i.pop.v : null;
+    if (k === 'area') return i ? i.area : null;
+    if (k === 'dens') return i && i.area ? i.pop.v / i.area : null;
+    if (k === 'coast') return i ? i.coast : null;
+    if (k === 'gdp') return x && x.g[0] != null ? x.g[0] : null;
+    if (k === 'gpc') return x && x.g[1] != null ? x.g[1] : null;
+    if (k === 'gro') return x && x.g[2] != null ? x.g[2] : null;
+    return d ? d[DEVK[k]] : null;
+  }
+  function popOf(id) { var i = info(id); return i ? i.pop.v : 0; }
+  function aggVal(ids, k) {
+    var a = [];
+    ids.forEach(function (id) { var v = mval(id, k); if (v != null) a.push({ id: id, v: v }); });
+    if (!a.length) return null;
+    var sum = function (f) { return a.reduce(function (s, x) { return s + f(x); }, 0); };
+    if (k === 'pop' || k === 'area' || k === 'coast' || k === 'gdp') return sum(function (x) { return x.v; });
+    if (k === 'dens') { var sa = sum(function (x) { return mval(x.id, 'area') || 0; }); return sa ? sum(function (x) { return popOf(x.id); }) / sa : null; }
+    if (k === 'gpc') { var sp = sum(function (x) { return popOf(x.id); }); var g = sum(function (x) { return mval(x.id, 'gdp') || 0; }); return sp && g ? g * 1e9 / sp : null; }
+    if (k === 'gro') { var gw = sum(function (x) { return mval(x.id, 'gdp') || 0; }); return gw ? sum(function (x) { return x.v * (mval(x.id, 'gdp') || 0); }) / gw : null; }
+    var pw = sum(function (x) { return popOf(x.id); });
+    return pw ? sum(function (x) { return x.v * popOf(x.id); }) / pw : sum(function (x) { return x.v; }) / a.length;
+  }
+  function cmpTable(cols) {
+    var h = '<div class="cmpwrap"><table class="cmpt"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c.label + '</th>'; }).join('') + '</tr></thead><tbody>';
+    if (cols.some(function (c) { return c.gov; })) h += '<tr><td class="lb">' + tr('نظام الحكم') + '</td>' + cols.map(function (c) { return '<td>' + esc(c.gov || '—') + '</td>'; }).join('') + '</tr>';
+    CROWS.forEach(function (r) {
+      var vals = cols.map(function (c) { return c.get(r[1]); }), mx = -Infinity;
+      vals.forEach(function (v) { if (v != null && v > mx) mx = v; });
+      h += '<tr><td class="lb">' + tr(r[0]) + '</td>' + vals.map(function (v) {
+        return '<td' + (v != null && v === mx && cols.length > 1 ? ' class="mx"' : '') + '>' + (v == null ? '—' : r[2](v)) + '</td>';
+      }).join('') + '</tr>';
+    });
+    return h + '</tbody></table></div>';
+  }
+  function countryCols() {
+    return selected.map(function (id) {
+      var g = window.GOV && window.GOV[id], t = g && window.GOV_TYPES[g];
+      return { label: esc(cname(byId[id])), get: function (k) { return mval(id, k); }, gov: t ? t[LANG === 'en' ? 1 : 0] : '' };
+    });
+  }
+  var cmpOpen = false, cmpMode = 'c', scSel = { cur: true }, scList = [];
+  try { scList = JSON.parse(localStorage.getItem('wm_scen') || '[]') || []; } catch (e) { scList = []; }
+  function scSave() { try { localStorage.setItem('wm_scen', JSON.stringify(scList)); } catch (e) {} }
+  function scItems() {
+    var a = [];
+    if (selected.length) a.push({ key: 'cur', name: tr('الاختيار الحالي'), ids: selected.slice() });
+    scList.forEach(function (s, i) { a.push({ key: 's' + i, name: s.n, ids: s.ids.filter(function (id) { return byId[id]; }), idx: i }); });
+    return a;
+  }
+  function scCols(items) {
+    return items.map(function (s) {
+      return { label: esc(s.name) + '<br><small>' + s.ids.length + ' ' + tr('دولة') + '</small>', get: function (k) { return aggVal(s.ids, k); } };
+    });
+  }
+  function renderCmp() {
+    $('tabC').className = cmpMode === 'c' ? 'on' : ''; $('tabS').className = cmpMode === 's' ? 'on' : '';
+    var h = '';
+    if (cmpMode === 'c') {
+      h = selected.length < 2 ? '<div class="hint">' + tr('اختر دولتين أو أكثر للمقارنة') + '</div>' : cmpTable(countryCols());
+    } else {
+      var items = scItems();
+      h = '<div class="scnew"><input id="scname" placeholder="' + esc(tr('اسم السيناريو')) + '"><button id="scsave">' + tr('حفظ الاختيار الحالي') + '</button></div>';
+      items.forEach(function (s) {
+        h += '<div class="scitem"><label><input type="checkbox" data-sc="' + s.key + '"' + (scSel[s.key] ? ' checked' : '') + '> ' + esc(s.name) + ' (' + s.ids.length + ')</label>';
+        if (s.idx !== undefined) h += '<span><button data-scload="' + s.idx + '">' + tr('تحميل') + '</button><button data-scdel="' + s.idx + '">✕</button></span>';
+        h += '</div>';
+      });
+      var chk = items.filter(function (s) { return scSel[s.key]; });
+      h += chk.length < 2 ? '<div class="hint">' + tr('اختر سيناريوهين أو أكثر للمقارنة') + '</div>' : cmpTable(scCols(chk)) + '<div class="note">' + tr('المجاميع للدول المتوفرة بياناتها؛ المتوسطات موزونة بعدد السكان (والنمو بالناتج المحلي).') + '</div>';
+    }
+    $('cmpbody').innerHTML = h;
+  }
+  function openCmp(mode) { cmpOpen = true; cmpMode = mode || cmpMode; $('cmp').style.display = 'flex'; renderCmp(); }
+  function closeCmp() { cmpOpen = false; $('cmp').style.display = 'none'; }
+  $('pcmp').onclick = function () { openCmp('c'); };
+  $('cmpx').onclick = closeCmp;
+  $('tabC').onclick = function () { cmpMode = 'c'; renderCmp(); };
+  $('tabS').onclick = function () { cmpMode = 's'; renderCmp(); };
+  $('cmpbody').addEventListener('change', function (e) {
+    var k = e.target.getAttribute && e.target.getAttribute('data-sc');
+    if (k) { scSel[k] = e.target.checked; renderCmp(); }
+  });
+  $('cmpbody').addEventListener('click', function (e) {
+    var t = e.target; if (!t.getAttribute) return;
+    if (t.id === 'scsave') {
+      if (!selected.length) { toast(tr('اختر دولة واحدة على الأقل')); return; }
+      var nm = ($('scname').value || '').trim() || (tr('سيناريو') + ' ' + (scList.length + 1));
+      scList.push({ n: nm, ids: selected.slice() }); scSel['s' + (scList.length - 1)] = true; scSave(); renderCmp(); return;
+    }
+    var ld = t.getAttribute('data-scload');
+    if (ld !== null) { var s = scList[+ld]; if (s) { selected = s.ids.filter(function (id) { return byId[id]; }); activeDiv = null; render(); draw(); renderCmp(); } return; }
+    var dl = t.getAttribute('data-scdel');
+    if (dl !== null) { scList.splice(+dl, 1); scSel = { cur: true }; scSave(); renderCmp(); }
+  });
+  function reportCountry(id) {
+    var c = byId[id], i = info(id);
+    var h = '<section class="rc"><h2>' + esc(cname(c)) + '</h2>' + flagsHtml(c);
+    if (i) {
+      h += row('عدد السكان', fmt(i.pop.v), tr(i.pop.src) + ' ' + i.pop.y) + row('المساحة', fmt(i.area) + tr(' كم²')) + row('طول السواحل', coastText(i.coast)) + extraHtml(id);
+    }
+    h += govRow(id) + moreHtml(id) + devHtml(id) + '</section>';
+    return h.replace(/<details>/g, '<details open>');
+  }
+  function buildReport() {
+    var h = '<h1>' + tr('تقرير خريطة العالم') + '</h1><div class="rdate">' + new Date().toLocaleDateString(LANG === 'en' ? 'en-GB' : 'ar') + '</div>';
+    if (cmpOpen && cmpMode === 's') {
+      var chk = scItems().filter(function (s) { return scSel[s.key]; });
+      h += '<h2>' + tr('مقارنة السيناريوهات') + '</h2>';
+      if (chk.length >= 2) h += cmpTable(scCols(chk));
+      chk.forEach(function (s) {
+        h += '<p><b>' + esc(s.name) + ':</b> ' + s.ids.map(function (id) { return esc(cname(byId[id])); }).join('، ') + '</p>';
+      });
+    } else {
+      if (selected.length > 1) h += '<h2>' + tr('مقارنة الدول') + '</h2>' + cmpTable(countryCols());
+      selected.forEach(function (id) { h += reportCountry(id); });
+    }
+    h += '<div class="rfoot">' + (LANG === 'en' ? 'Prepared by Eng. Abdulrahman Hawa 0950505109' : 'من إعداد المهندس عبدالرحمن حوا 0950505109') + '</div>';
+    $('report').innerHTML = h;
+  }
+  function exportPdf() {
+    if (!selected.length && !(cmpOpen && cmpMode === 's')) { toast(tr('اختر دولة واحدة على الأقل')); return; }
+    buildReport();
+    setTimeout(function () {
+      if (window.AndroidPrint && window.AndroidPrint.printPage) window.AndroidPrint.printPage(); else window.print();
+    }, 200);
+  }
+  $('ppdf').onclick = exportPdf;
+  $('cmppdf').onclick = exportPdf;
+
   /* ---------- اللغة ---------- */
   function applyLang() {
     var en = LANG === 'en';
@@ -763,8 +965,12 @@
     document.title = tr('خريطة العالم');
     $('q').placeholder = tr('ابحث عن دولة وأضفها...');
     $('mbtn').title = tr('تلوين الخريطة حسب بيان'); $('theme').title = tr('نهاري / ليلي');
-    $('refresh').title = tr('تحديث بيانات السكان من الإنترنت'); $('zlab').title = tr('أسماء الدول'); $('zcity').title = tr('المدن');
+    $('refresh').title = tr('تحديث بيانات السكان من الإنترنت'); $('zlab').title = tr('أسماء الدول'); $('zcity').title = tr('المدن'); $('zdiv').title = tr('المحافظات');
     $('pclear').textContent = tr('مسح');
+    $('pcmp').title = tr('مقارنة'); $('ppdf').title = tr('تصدير PDF');
+    $('tabC').textContent = tr('الدول'); $('tabS').textContent = tr('السيناريوهات'); $('cmpt').textContent = tr('مقارنة');
+    $('cmppdf').textContent = '📄 ' + tr('تصدير PDF');
+    if (cmpOpen) renderCmp();
     $('lang').textContent = en ? 'ع' : 'EN';
     $('credit').innerHTML = en
       ? 'Prepared by Eng. Abdulrahman Hawa 0950505109<br>For more apps click <a href="' + DRIVE + '" target="_blank" rel="noopener">here</a>'

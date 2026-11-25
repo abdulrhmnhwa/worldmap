@@ -22,6 +22,7 @@
   <button id="zin">+</button>
   <button id="zout">−</button>
   <button id="zfit">⌂</button>
+  <button id="zdiv" title="المحافظات">🧩</button>
   <button id="zcity" title="المدن">🏙</button>
   <button id="zlab" title="أسماء الدول">Aa</button>
   <button id="lang" title="Language / اللغة">EN</button>
@@ -33,6 +34,8 @@
   <div id="phead">
     <span id="ptitle">معلومات الدول</span>
     <span>
+      <button id="pcmp" title="مقارنة">⚖️</button>
+      <button id="ppdf" title="تصدير PDF">📄</button>
       <button id="pclear">مسح</button>
       <button id="ptoggle">▾</button>
     </span>
@@ -41,11 +44,22 @@
   <div id="credit">من إعداد المهندس عبدالرحمن حوا 0950505109<br>لمزيد من التطبيقات اضغط <a href="https://drive.google.com/drive/folders/1guT6C4OD5waAmNoqhW-IxUcvZhby55aS?usp=drive_link" target="_blank" rel="noopener">هنا</a></div>
 </div>
 
+<div id="cmp"><div id="cmpbox">
+  <div class="cmphead"><b id="cmpt">مقارنة</b><span><button id="cmppdf">📄 تصدير PDF</button><button id="cmpx">✕</button></span></div>
+  <div class="cmptabs"><button id="tabC" class="on">الدول</button><button id="tabS">السيناريوهات</button></div>
+  <div id="cmpbody"></div>
+</div></div>
+
+<div id="report"></div>
+
 <div id="toast"></div>
 
 <script src="data/countries-data.js"></script>
 <script src="data/i18n-en.js"></script>
 <script src="data/extra-data.js"></script>
+<script src="data/gov-data.js"></script>
+<script src="data/dev-data.js"></script>
+<script src="data/country-more.js"></script>
 <script src="data/extra-data-en.js"></script>
 <script src="data/world.js"></script>
 <script src="data/admin1-extra.js"></script>
